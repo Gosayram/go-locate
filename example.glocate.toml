@@ -1,0 +1,43 @@
+# Example configuration file for go-locate
+# Copy this to ~/.glocate.toml and customize as needed
+
+[search]
+# Directories to exclude from search
+exclude_dirs = [
+    "/proc",
+    "/sys", 
+    "/dev",
+    "/tmp",
+    "node_modules",
+    ".git",
+    ".svn",
+    "target",
+    "build",
+    "dist"
+]
+
+# Directories to include (if empty, searches from root)
+include_dirs = [
+    # "/home",
+    # "/opt",
+    # "/usr/local"
+]
+
+# Maximum search depth (0 = unlimited)
+max_depth = 20
+
+# Follow symbolic links
+follow_symlinks = false
+
+# Default number of threads (0 = use CPU count)
+default_threads = 0
+
+[output]
+# Output format: "path", "detailed", or "json"
+format = "path"
+
+# Enable colored output
+color = true
+
+# Maximum number of results to display
+max_results = 1000 

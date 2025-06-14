@@ -4,14 +4,18 @@
 BINARY_NAME := glocate
 OUTPUT_DIR := bin
 CMD_DIR := cmd/glocate
-RUST_DIR := rust-core
-TAG_NAME ?= v$(shell head -n 1 .release-version 2>/dev/null || echo "0.0.0")
-VERSION_RAW ?= $(shell cat .release-version 2>/dev/null || echo "dev")
+
+TAG_NAME ?= $(shell head -n 1 .release-version 2>/dev/null || echo "v0.0.0")
+VERSION_RAW ?= $(shell tail -n 1 .release-version 2>/dev/null || echo "dev")
 VERSION ?= $(VERSION_RAW)
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GO_VERSION := $(shell cat .go-version 2>/dev/null || echo "1.24.2")
 GO_FILES := $(wildcard $(CMD_DIR)/*.go internal/**/*.go)
+GOPATH ?= $(shell go env GOPATH)
+GOLANGCI_LINT = $(GOPATH)/bin/golangci-lint
+STATICCHECK = $(GOPATH)/bin/staticcheck
+GOIMPORTS = $(GOPATH)/bin/goimports
 
 # Ensure the output directory exists
 $(OUTPUT_DIR):
@@ -19,7 +23,7 @@ $(OUTPUT_DIR):
 
 # Default target
 .PHONY: default
-default: fmt vet lint staticcheck build quicktest
+default: fmt vet imports lint staticcheck build quicktest
 
 # Display help information
 .PHONY: help
@@ -35,7 +39,7 @@ help:
 	@echo "  build           - Build the application for the current OS/architecture"
 	@echo "  build-debug     - Build debug version with debug symbols"
 	@echo "  build-cross     - Build binaries for multiple platforms (Linux, macOS, Windows)"
-	@echo "  build-rust      - Build only the Rust core component"
+
 	@echo "  install         - Install binary to /usr/local/bin"
 	@echo "  uninstall       - Remove binary from /usr/local/bin"
 	@echo ""
@@ -43,7 +47,7 @@ help:
 	@echo "  ======================"
 	@echo "  test            - Run all tests with standard coverage"
 	@echo "  test-with-race  - Run all tests with race detection and coverage"
-	@echo "  test-rust       - Run Rust tests"
+
 	@echo "  quicktest       - Run quick tests without additional checks"
 	@echo "  test-coverage   - Run tests with coverage report"
 	@echo "  test-race       - Run tests with race detection"
@@ -55,14 +59,15 @@ help:
 	@echo "  benchmark       - Run basic benchmarks"
 	@echo "  benchmark-long  - Run comprehensive benchmarks with longer duration"
 	@echo "  benchmark-search- Run file search benchmarks"
-	@echo "  benchmark-rust  - Run Rust performance benchmarks"
+
 	@echo "  benchmark-report- Generate a markdown report of all benchmarks"
 	@echo ""
 	@echo "  Code Quality:"
 	@echo "  ============"
-	@echo "  fmt             - Check and format code (Go and Rust)"
+	@echo "  fmt             - Check and format Go code"
 	@echo "  vet             - Analyze code with go vet"
-	@echo "  lint            - Run golangci-lint and clippy"
+	@echo "  imports         - Format imports with goimports"
+	@echo "  lint            - Run golangci-lint"
 	@echo "  lint-fix        - Run linters with auto-fix"
 	@echo "  staticcheck     - Run staticcheck static analyzer"
 	@echo "  check-all       - Run all code quality checks"
@@ -111,60 +116,51 @@ install-deps:
 	@echo "Installing Go dependencies..."
 	go mod download
 	go mod tidy
-	@echo "Installing Rust dependencies..."
-	cd $(RUST_DIR) && cargo fetch
 	@echo "Dependencies installed successfully"
 
 upgrade-deps:
 	@echo "Upgrading all dependencies to latest versions..."
 	go get -u ./...
 	go mod tidy
-	cd $(RUST_DIR) && cargo update
 	@echo "Dependencies upgraded. Please test thoroughly before committing!"
 
 clean-deps:
 	@echo "Cleaning up dependencies..."
 	rm -rf vendor
-	cd $(RUST_DIR) && cargo clean
 
 install-tools:
 	@echo "Installing development tools..."
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
+	go install golang.org/x/tools/cmd/goimports@latest
 	@echo "Development tools installed successfully"
 
 # Build targets
-.PHONY: build build-debug build-cross build-rust
+.PHONY: build build-debug build-cross
 
 build: $(OUTPUT_DIR)
 	@echo "Building $(BINARY_NAME) with version $(VERSION)..."
-	cd $(RUST_DIR) && cargo build --release
-	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=1 go build \
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
 		-ldflags="-X 'main.Version=$(VERSION)'" \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 
 build-debug: $(OUTPUT_DIR)
 	@echo "Building debug version..."
-	cd $(RUST_DIR) && cargo build
-	CGO_ENABLED=1 go build \
+	CGO_ENABLED=0 go build \
 		-gcflags="all=-N -l" \
 		-ldflags="-X 'main.Version=$(VERSION)'" \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME)-debug ./$(CMD_DIR)
 
 build-cross: $(OUTPUT_DIR)
 	@echo "Building cross-platform binaries..."
-	cd $(RUST_DIR) && cargo build --release
-	GOOS=linux   GOARCH=amd64   CGO_ENABLED=1 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
-	GOOS=darwin  GOARCH=arm64   CGO_ENABLED=1 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
-	GOOS=darwin  GOARCH=amd64   CGO_ENABLED=1 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
-	GOOS=windows GOARCH=amd64   CGO_ENABLED=1 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
+	GOOS=linux   GOARCH=amd64   CGO_ENABLED=0 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
+	GOOS=darwin  GOARCH=arm64   CGO_ENABLED=0 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
+	GOOS=darwin  GOARCH=amd64   CGO_ENABLED=0 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
+	GOOS=windows GOARCH=amd64   CGO_ENABLED=0 go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(OUTPUT_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
 	@echo "Cross-platform binaries are available in $(OUTPUT_DIR):"
 	@ls -1 $(OUTPUT_DIR)
 
-build-rust:
-	@echo "Building Rust core component..."
-	cd $(RUST_DIR) && cargo build --release
-	@echo "Rust core built successfully"
+
 
 # Development targets
 .PHONY: dev run-built
@@ -177,22 +173,17 @@ run-built: build
 	./$(OUTPUT_DIR)/$(BINARY_NAME) $(ARGS)
 
 # Testing
-.PHONY: test test-with-race test-rust quicktest test-coverage test-race test-integration test-all
+.PHONY: test test-with-race quicktest test-coverage test-race test-integration test-all
 
 test:
 	@echo "Running Go tests..."
 	go test -v ./... -cover
-	@echo "Running Rust tests..."
-	cd $(RUST_DIR) && cargo test
 
 test-with-race:
 	@echo "Running all tests with race detection and coverage..."
 	go test -v -race -cover ./...
-	cd $(RUST_DIR) && cargo test
 
-test-rust:
-	@echo "Running Rust tests..."
-	cd $(RUST_DIR) && cargo test
+
 
 quicktest:
 	@echo "Running quick tests..."
@@ -217,7 +208,7 @@ test-all: test-coverage test-race benchmark
 	@echo "All tests and benchmarks completed"
 
 # Benchmark targets
-.PHONY: benchmark benchmark-long benchmark-search benchmark-rust benchmark-report
+.PHONY: benchmark benchmark-long benchmark-search benchmark-report
 
 benchmark:
 	@echo "Running benchmarks..."
@@ -232,54 +223,74 @@ benchmark-search: build
 	# TODO: Add search-specific benchmarks when implemented
 	@echo "Search benchmarks not yet implemented"
 
-benchmark-rust:
-	@echo "Running Rust performance benchmarks..."
-	cd $(RUST_DIR) && cargo bench
+
 
 benchmark-report:
 	@echo "Generating benchmark report..."
 	@echo "# Benchmark Results" > benchmark-report.md
 	@echo "\nGenerated on \`$$(date)\`\n" >> benchmark-report.md
 	@echo "## Go Benchmarks" >> benchmark-report.md
-	@go test -bench=. -benchmem ./... 2>/dev/null | grep "Benchmark" | awk '{print "| " $$1 " | " $$2 " | " $$3 " " $$4 " | " $$5 " " $$6 " | " $$7 " " $$8 " |"}' >> benchmark-report.md
-	@echo "\n## Rust Benchmarks" >> benchmark-report.md
-	@cd $(RUST_DIR) && cargo bench 2>/dev/null | grep "test " | awk '{print "| " $$2 " | " $$4 " " $$5 " |"}' >> benchmark-report.md
+	@echo "| Test | Iterations | Time/op | Memory/op | Allocs/op |" >> benchmark-report.md
+	@echo "|------|------------|---------|-----------|-----------|" >> benchmark-report.md
+	@go test -bench=. -benchmem ./... 2>/dev/null | grep "Benchmark" | awk '{print "| " $$1 " | " $$2 " | " $$3 " | " $$5 " | " $$7 " |"}' >> benchmark-report.md
 	@echo "Benchmark report generated: benchmark-report.md"
 
 # Code quality
-.PHONY: fmt vet lint lint-fix staticcheck check-all
+.PHONY: fmt vet imports lint lint-fix staticcheck check-all
 
 fmt:
 	@echo "Checking and formatting code..."
 	@echo "Formatting Go code..."
 	@go fmt ./...
-	@echo "Formatting Rust code..."
-	@cd $(RUST_DIR) && cargo fmt
 	@echo "Code formatting completed"
 
 vet:
 	@echo "Running go vet..."
 	go vet ./...
 
+# Run goimports
+.PHONY: imports
+imports:
+	@if command -v $(GOIMPORTS) >/dev/null 2>&1; then \
+		echo "Running goimports..."; \
+		$(GOIMPORTS) -local github.com/Gosayram/go-locate -w $(GO_FILES); \
+		echo "Imports formatting completed!"; \
+	else \
+		echo "goimports is not installed. Installing..."; \
+		go install golang.org/x/tools/cmd/goimports@latest; \
+		echo "Running goimports..."; \
+		$(GOIMPORTS) -local github.com/Gosayram/go-locate -w $(GO_FILES); \
+		echo "Imports formatting completed!"; \
+	fi
+
+# Run linter
+.PHONY: lint
 lint:
-	@echo "Running golangci-lint..."
-	@golangci-lint run
-	@echo "Running clippy for Rust..."
-	@cd $(RUST_DIR) && cargo clippy -- -D warnings
-	@echo "Linting completed"
+	@if command -v $(GOLANGCI_LINT) >/dev/null 2>&1; then \
+		echo "Running linter..."; \
+		$(GOLANGCI_LINT) run; \
+		echo "Linter ended!"; \
+	else \
+		echo "golangci-lint is not installed. Skipping linter. Run 'make install-lint' to install."; \
+	fi
+
+# Run staticcheck tool
+.PHONY: staticcheck
+staticcheck:
+	@if command -v $(STATICCHECK) >/dev/null 2>&1; then \
+		echo "Running staticcheck..."; \
+		$(STATICCHECK) ./...; \
+		echo "Staticcheck ended!"; \
+	else \
+		echo "staticcheck is not installed. Skipping staticcheck. Run 'make install-staticcheck' to install."; \
+	fi
 
 lint-fix:
 	@echo "Running linters with auto-fix..."
-	@golangci-lint run --fix
-	@cd $(RUST_DIR) && cargo clippy --fix --allow-dirty -- -D warnings
+	@$(GOLANGCI_LINT) run --fix
 	@echo "Auto-fix completed"
 
-staticcheck:
-	@echo "Running staticcheck..."
-	@staticcheck ./...
-	@echo "Staticcheck passed!"
-
-check-all: lint staticcheck
+check-all: imports lint staticcheck
 	@echo "All code quality checks completed"
 
 # Release and installation
@@ -312,7 +323,6 @@ clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(OUTPUT_DIR)
 	rm -f coverage.out coverage.html benchmark-report.md
-	cd $(RUST_DIR) && cargo clean
 	go clean -cache
 	@echo "Cleanup completed"
 
