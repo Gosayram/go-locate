@@ -242,7 +242,7 @@ func BenchmarkLargeDirectorySearch(b *testing.B) {
 		searcher, _ := New(config)
 		results, _ := searcher.Search()
 
-		// Count results
+		// Count results to avoid too much overhead
 		count := 0
 		for range results {
 			count++
