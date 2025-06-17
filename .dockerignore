@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# CI/CD
+.github/
+coverage.out
+coverage.html
+benchmark-report.md
+
+# Documentation
+docs/
+README.md
+*.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+dist/
+
+# Test data
+testdata/
+
+# Config examples
+config.example.toml
+config.toml
+*.glocate.toml
+
+# Binary
+glocate
+glocate.*
+
+# Dependencies
+vendor/
+
+# Logs
+*.log 

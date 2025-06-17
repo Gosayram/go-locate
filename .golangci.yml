@@ -1,99 +1,101 @@
+version: "2"
 run:
-  timeout: 5m
   issues-exit-code: 1
   tests: true
-
-output:
-  formats: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-
-linters-settings:
-  govet:
-    enable:
-      - shadow
-  gocyclo:
-    min-complexity: 15
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-  misspell:
-    locale: US
-  lll:
-    line-length: 120
-  goimports:
-    local-prefixes: github.com/Gosayram/go-locate
-  gocritic:
-    enabled-tags:
-      - performance
-      - style
-      - experimental
-    disabled-checks:
-      - wrapperFunc
-  funlen:
-    lines: 100
-    statements: 50
-  gocognit:
-    min-complexity: 20
-  depguard:
-    rules:
-      main:
-        deny:
-          - pkg: "github.com/pkg/errors"
-            desc: "use standard errors package"
-
 linters:
   enable:
     - bodyclose
     - dupl
-    - errcheck
     - funlen
     - gochecknoinits
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
-    - mnd
     - goprintffuncname
     - gosec
-    - gosimple
-    - govet
-    - ineffassign
     - lll
     - misspell
+    - mnd
     - nakedret
+    - revive
     - staticcheck
-    - stylecheck
-    - typecheck
     - unconvert
     - unparam
-    - unused
     - whitespace
-    - revive
   disable:
     - depguard
-
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: github.com/pkg/errors
+              desc: use standard errors package
+    dupl:
+      threshold: 100
+    funlen:
+      lines: 100
+      statements: 50
+    gocognit:
+      min-complexity: 20
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - wrapperFunc
+      enabled-tags:
+        - performance
+        - style
+        - experimental
+    gocyclo:
+      min-complexity: 15
+    govet:
+      enable:
+        - shadow
+    lll:
+      line-length: 120
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - funlen
+          - gocognit
+          - mnd
+        path: _test\.go
+      - linters:
+          - gochecknoinits
+        path: cmd/
+      - path: (.+)\.go$
+        text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*printf?|os\.(Un)?Setenv). is not checked
+    paths:
+      - .*\.pb\.go$
+      - .*_test\.go$
+      - vendor
+      - .git
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-dirs:
-    - vendor
-    - .git
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*_test\\.go$"
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - mnd
-        - funlen
-        - gocognit
-    - path: cmd/
-      linters:
-        - gochecknoinits
-  exclude:
-    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*printf?|os\\.(Un)?Setenv). is not checked"
-  exclude-use-default: false
   max-issues-per-linter: 0
-  max-same-issues: 0 
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Gosayram/go-locate
+  exclusions:
+    generated: lax
+    paths:
+      - .*\.pb\.go$
+      - .*_test\.go$
+      - vendor
+      - .git
+      - third_party$
+      - builtin$
+      - examples$

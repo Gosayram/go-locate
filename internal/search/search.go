@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// Constants
 const (
 	// Default buffer size for results channel
 	defaultResultsBufferSize = 100

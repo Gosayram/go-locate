@@ -10,19 +10,26 @@ import (
 	"github.com/Gosayram/go-locate/internal/config"
 	"github.com/Gosayram/go-locate/internal/output"
 	"github.com/Gosayram/go-locate/internal/search"
+	"github.com/Gosayram/go-locate/internal/version"
 )
-
-// Version is set during build time
-var Version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:   "glocate [pattern]",
 	Short: "Modern file search tool",
 	Long: `glocate is a modern, fast file search tool that replaces the outdated locate command.
 It provides real-time file system searching without relying on outdated databases.`,
-	Version: Version,
+	Version: version.GetVersion(),
 	Args:    cobra.MaximumNArgs(1),
 	RunE:    runSearch,
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Show version information",
+	Long:  "Display detailed version and build information for glocate",
+	Run: func(_ *cobra.Command, _ []string) {
+		fmt.Println(version.GetFullVersionInfo())
+	},
 }
 
 var (
@@ -44,6 +51,9 @@ var (
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	// Add version command
+	rootCmd.AddCommand(versionCmd)
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.glocate.toml)")
