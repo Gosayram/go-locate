@@ -127,10 +127,10 @@ jobs:
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
           
-          LDFLAGS="-s -w -X github.com/Gosayram/go-mdfmt/internal/version.Version=${{ env.VERSION_NO_V }}"
-          LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-mdfmt/internal/version.Commit=${{ github.sha }}"
-          LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-mdfmt/internal/version.Date=$(date -u +%Y-%m-%d_%H:%M:%S)"
-          LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-mdfmt/internal/version.BuiltBy=github-actions"
+          LDFLAGS="-s -w -X github.com/Gosayram/go-locate/internal/version.Version=${{ env.VERSION_NO_V }}"
+          LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-locate/internal/version.Commit=${{ github.sha }}"
+          LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-locate/internal/version.Date=$(date -u +%Y-%m-%d_%H:%M:%S)"
+          LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-locate/internal/version.BuiltBy=github-actions"
           
           go build -ldflags="$LDFLAGS" -o "${BINARY_NAME}" ./cmd/mdfmt
           
@@ -293,7 +293,7 @@ jobs:
           echo "### Linux/macOS:" >> changelog.md
           echo '```bash' >> changelog.md
           echo "# Download binary" >> changelog.md
-          echo "curl -L -o mdfmt https://github.com/Gosayram/go-mdfmt/releases/download/${{ env.VERSION }}/mdfmt-*-linux-amd64" >> changelog.md
+          echo "curl -L -o mdfmt https://github.com/Gosayram/go-locate/releases/download/${{ env.VERSION }}/mdfmt-*-linux-amd64" >> changelog.md
           echo "" >> changelog.md
           echo "# Make executable and move to PATH" >> changelog.md
           echo "chmod +x mdfmt" >> changelog.md
@@ -381,8 +381,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/go-mdfmt:${{ env.VERSION }}
-            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/go-mdfmt:latest
+            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/go-locate:${{ env.VERSION }}
+            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/go-locate:latest
           labels: |
             org.opencontainers.image.title=mdfmt
             org.opencontainers.image.description="Fast, reliable Markdown formatter"

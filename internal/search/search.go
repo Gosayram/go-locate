@@ -129,6 +129,7 @@ func (s *Searcher) getSearchRoots() []string {
 func (s *Searcher) searchWorker(root string) {
 	defer s.wg.Done()
 
+	// Add support for parallel search
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			// Skip directories we can't access
