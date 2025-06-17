@@ -54,6 +54,7 @@ func GetFullVersionInfo() string {
 		formattedDate := strings.ReplaceAll(Date, "_", " ")
 		buildInfo = append(buildInfo, fmt.Sprintf("built %s", formattedDate))
 	}
+	// TODO: Add build number to the build info
 	if BuiltBy != UnknownValue && BuiltBy != "" {
 		buildInfo = append(buildInfo, fmt.Sprintf("by %s", BuiltBy))
 	}

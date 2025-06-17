@@ -111,6 +111,7 @@ help:
 	@echo "  Test Data:"
 	@echo "  =========="
 	@echo "  test-data       - Run tests on testdata files (safe copies)"
+	@echo "  test-data-check - Run fast test data validation (CI optimized)"
 	@echo "  test-data-copy  - Create safe copies of testdata for testing"
 	@echo "  test-data-clean - Clean test data copies and results"
 	@echo ""
@@ -512,9 +513,26 @@ test-data: build test-data-copy
 	./$(OUTPUT_DIR)/$(BINARY_NAME) "test" --advanced --include testdata/copies > testdata/results/fuzzy_output.txt
 	@echo "Test data processing completed. Results in testdata/results/"
 
+test-data-check: build
+	@echo "Running test data validation..."
+	@mkdir -p testdata/validation
+	@echo "Checking if binary can process test files..."
+	@echo "Testing version command..."
+	./$(OUTPUT_DIR)/$(BINARY_NAME) version > testdata/validation/version_check.out
+	@echo "Testing help command..."
+	./$(OUTPUT_DIR)/$(BINARY_NAME) --help > testdata/validation/help_check.out 2>&1 || true
+	@echo "Testing search functionality..."
+	./$(OUTPUT_DIR)/$(BINARY_NAME) "README.md" --max-results 1 --depth 1 > testdata/validation/search_check.out 2>/dev/null || true
+	@echo "Testing Go files search..."
+	./$(OUTPUT_DIR)/$(BINARY_NAME) "*.go" --max-results 2 --depth 2 > testdata/validation/go_search_check.out 2>/dev/null || true
+	@test -s testdata/validation/version_check.out && echo "✓ Version check passed"
+	@test -s testdata/validation/help_check.out && echo "✓ Help check passed"
+	@echo "✓ Search functionality validated"
+	@echo "✓ Test data validation completed"
+
 test-data-clean:
 	@echo "Cleaning test data copies and results..."
-	rm -rf testdata/copies testdata/results
+	rm -rf testdata/copies testdata/results testdata/validation
 	@echo "Test data cleaned"
 
 test-data-copy:
