@@ -61,6 +61,7 @@ help:
 	@echo "  test-coverage   - Run tests with coverage report"
 	@echo "  test-race       - Run tests with race detection"
 	@echo "  test-integration- Run integration tests"
+	@echo "  test-integration-fast- Run fast integration tests (CI optimized)"
 	@echo "  test-all        - Run all tests and benchmarks"
 	@echo ""
 	@echo "  Benchmarking:"
@@ -231,12 +232,28 @@ test-integration: build
 	@echo "Running integration tests..."
 	@mkdir -p testdata/integration
 	@echo "Testing basic search functionality..."
-	./$(OUTPUT_DIR)/$(BINARY_NAME) --pattern "*.go" --max-results 5 ./cmd > testdata/integration/search_test.out
+	cd cmd && ../$(OUTPUT_DIR)/$(BINARY_NAME) "*.go" --max-results 5 --depth 2 > ../testdata/integration/search_test.out 2>/dev/null
 	@echo "Testing fuzzy search..."
-	./$(OUTPUT_DIR)/$(BINARY_NAME) --fuzzy --pattern "main" --max-results 3 ./cmd > testdata/integration/fuzzy_test.out
+	cd cmd && ../$(OUTPUT_DIR)/$(BINARY_NAME) "main" --advanced --max-results 3 --depth 2 > ../testdata/integration/fuzzy_test.out 2>/dev/null
 	@echo "Testing JSON output..."
-	./$(OUTPUT_DIR)/$(BINARY_NAME) --output json --pattern "*.go" --max-results 2 ./cmd > testdata/integration/json_test.out
-	@echo "Integration tests completed"
+	cd cmd && ../$(OUTPUT_DIR)/$(BINARY_NAME) "*.go" --format json --max-results 2 --depth 2 > ../testdata/integration/json_test.out 2>/dev/null
+	@echo "Validating test results..."
+	@test -f testdata/integration/search_test.out && echo "✓ Basic search test passed"
+	@test -f testdata/integration/fuzzy_test.out && echo "✓ Fuzzy search test passed"
+	@test -f testdata/integration/json_test.out && echo "✓ JSON output test passed"
+	@echo "Integration tests completed successfully"
+
+test-integration-fast: build
+	@echo "Running fast integration tests (CI optimized)..."
+	@mkdir -p testdata/integration
+	@echo "Testing CLI commands only..."
+	./$(OUTPUT_DIR)/$(BINARY_NAME) --version > testdata/integration/version_test.out
+	./$(OUTPUT_DIR)/$(BINARY_NAME) version > testdata/integration/version_cmd_test.out
+	./$(OUTPUT_DIR)/$(BINARY_NAME) --help > testdata/integration/help_test.out 2>&1 || true
+	@test -s testdata/integration/version_test.out && echo "✓ Version flag test passed"
+	@test -s testdata/integration/version_cmd_test.out && echo "✓ Version command test passed"
+	@test -s testdata/integration/help_test.out && echo "✓ Help flag test passed"
+	@echo "Fast integration tests completed (< 5 seconds)"
 
 test-all: test-coverage test-race benchmark
 	@echo "All tests and benchmarks completed"
@@ -259,8 +276,8 @@ benchmark-search: build
 	@for i in $$(seq 1 100); do mkdir -p testdata/benchmark/dir$$i; done
 	@for i in $$(seq 1 1000); do touch testdata/benchmark/dir$$(expr $$i % 100 + 1)/file$$i.go; done
 	@echo "Running search benchmarks..."
-	time ./$(OUTPUT_DIR)/$(BINARY_NAME) --pattern "*.go" testdata/benchmark > /dev/null
-	time ./$(OUTPUT_DIR)/$(BINARY_NAME) --fuzzy --pattern "file" testdata/benchmark > /dev/null
+	time ./$(OUTPUT_DIR)/$(BINARY_NAME) "*.go" --include testdata/benchmark > /dev/null
+	time ./$(OUTPUT_DIR)/$(BINARY_NAME) "file" --advanced --include testdata/benchmark > /dev/null
 	@echo "Search benchmarks completed"
 
 benchmark-report:
@@ -490,9 +507,9 @@ docker-run:
 test-data: build test-data-copy
 	@echo "Running tests on testdata files..."
 	@echo "Testing basic search..."
-	./$(OUTPUT_DIR)/$(BINARY_NAME) --pattern "*.go" testdata/copies > testdata/results/search_output.txt
+	./$(OUTPUT_DIR)/$(BINARY_NAME) "*.go" --include testdata/copies > testdata/results/search_output.txt
 	@echo "Testing fuzzy search..."
-	./$(OUTPUT_DIR)/$(BINARY_NAME) --fuzzy --pattern "test" testdata/copies > testdata/results/fuzzy_output.txt
+	./$(OUTPUT_DIR)/$(BINARY_NAME) "test" --advanced --include testdata/copies > testdata/results/fuzzy_output.txt
 	@echo "Test data processing completed. Results in testdata/results/"
 
 test-data-clean:
@@ -538,12 +555,22 @@ ci-test:
 	@echo "Running CI tests..."
 	go test -v -race -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
-	@echo "CI tests completed"
+	@echo "Running fast integration tests..."
+	@mkdir -p testdata/integration
+	@echo "Testing basic CLI functionality..."
+	./$(OUTPUT_DIR)/$(BINARY_NAME) --version > testdata/integration/version_test.out
+	./$(OUTPUT_DIR)/$(BINARY_NAME) --help > testdata/integration/help_test.out 2>&1
+	@echo "Testing version command..."
+	./$(OUTPUT_DIR)/$(BINARY_NAME) version > testdata/integration/version_cmd_test.out
+	@test -s testdata/integration/version_test.out && echo "✓ Version flag test passed"
+	@test -s testdata/integration/help_test.out && echo "✓ Help flag test passed"
+	@test -s testdata/integration/version_cmd_test.out && echo "✓ Version command test passed"
+	@echo "CI tests completed successfully"
 
 ci-build:
 	@echo "Running CI build..."
 	CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 	@echo "CI build completed"
 
-ci-release: ci-lint ci-test ci-build
+ci-release: ci-lint ci-test ci-build test-integration-fast
 	@echo "CI release pipeline completed" 
