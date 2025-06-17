@@ -336,6 +336,7 @@ jobs:
     name: Build and Push Docker Image
     needs: build_and_test
     runs-on: ubuntu-latest
+    if: success() # Only run if tests pass, but don't block release on Docker failure
     permissions:
       contents: read      # Required to checkout code
       packages: write     # Required to push Docker images to GHCR
@@ -378,7 +379,7 @@ jobs:
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,darwin/amd64,darwin/arm64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/glocate:${{ env.VERSION }}
@@ -389,4 +390,4 @@ jobs:
             org.opencontainers.image.version=${{ env.VERSION_NO_V }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ steps.date.outputs.date }} 
+            org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ) 

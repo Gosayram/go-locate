@@ -139,7 +139,7 @@ func (s *Searcher) searchWorker(root string) {
 			return nil
 		}
 
-		// Check if we should exclude this path
+		// Check if we should exclude this path (e.g. /proc, /sys, /dev, /tmp)
 		if s.shouldExclude(path) {
 			if info.IsDir() {
 				return filepath.SkipDir
