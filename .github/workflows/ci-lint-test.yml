@@ -97,6 +97,18 @@ jobs:
           install-go: false
           cache-key: ${{ runner.os }}-${{ env.GOVERSION }}
           
+      - name: Install errcheck
+        run: go install github.com/kisielk/errcheck@v1.9.0
+        
+      - name: Run errcheck
+        run: |
+          echo "Running errcheck to find unchecked errors..."
+          if [ -f .errcheck_excludes.txt ]; then
+            errcheck -exclude .errcheck_excludes.txt ./...
+          else
+            errcheck ./...
+          fi
+          
       - name: Run Integration Tests
         run: make test-integration
         

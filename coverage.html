@@ -1,0 +1,985 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>glocate: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/Gosayram/go-locate/cmd/glocate/main.go (0.0%)</option>
+				
+				<option value="file1">github.com/Gosayram/go-locate/internal/config/config.go (0.0%)</option>
+				
+				<option value="file2">github.com/Gosayram/go-locate/internal/output/output.go (0.0%)</option>
+				
+				<option value="file3">github.com/Gosayram/go-locate/internal/search/search.go (55.1%)</option>
+				
+				<option value="file4">github.com/Gosayram/go-locate/internal/version/version.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// Package main provides the command-line interface for go-locate
+package main
+
+import (
+        "fmt"
+        "os"
+
+        "github.com/spf13/cobra"
+
+        "github.com/Gosayram/go-locate/internal/config"
+        "github.com/Gosayram/go-locate/internal/output"
+        "github.com/Gosayram/go-locate/internal/search"
+        "github.com/Gosayram/go-locate/internal/version"
+)
+
+var rootCmd = &amp;cobra.Command{
+        Use:   "glocate [pattern]",
+        Short: "Modern file search tool",
+        Long: `glocate is a modern, fast file search tool that replaces the outdated locate command.
+It provides real-time file system searching without relying on outdated databases.`,
+        Version: version.GetVersion(),
+        Args:    cobra.MaximumNArgs(1),
+        RunE:    runSearch,
+}
+
+var versionCmd = &amp;cobra.Command{
+        Use:   "version",
+        Short: "Show version information",
+        Long:  "Display detailed version and build information for glocate",
+        Run: func(_ *cobra.Command, _ []string) <span class="cov0" title="0">{
+                fmt.Println(version.GetFullVersionInfo())
+        }</span>,
+}
+
+var (
+        cfgFile     string
+        advanced    bool
+        extensions  []string
+        size        string
+        mtime       string
+        content     string
+        exclude     []string
+        include     []string
+        threads     int
+        depth       int
+        followLinks bool
+        format      string
+        maxResults  int
+        verbose     bool
+)
+
+func init() <span class="cov0" title="0">{
+        cobra.OnInitialize(initConfig)
+
+        // Add version command
+        rootCmd.AddCommand(versionCmd)
+
+        // Global flags
+        rootCmd.PersistentFlags().StringVar(&amp;cfgFile, "config", "", "config file (default is $HOME/.glocate.toml)")
+        rootCmd.PersistentFlags().BoolVarP(&amp;verbose, "verbose", "v", false, "verbose output")
+
+        // Search flags
+        rootCmd.Flags().BoolVar(&amp;advanced, "advanced", false, "enable advanced search mode with fuzzy matching")
+        rootCmd.Flags().StringSliceVar(&amp;extensions, "ext", []string{}, "filter by file extensions (comma-separated)")
+        rootCmd.Flags().StringVar(&amp;size, "size", "", "filter by file size (+100M, -1K)")
+        rootCmd.Flags().StringVar(&amp;mtime, "mtime", "", "filter by modification time (-7d, +1h)")
+        rootCmd.Flags().StringVar(&amp;content, "content", "", "search file content")
+        rootCmd.Flags().StringSliceVar(&amp;exclude, "exclude", []string{}, "exclude directories")
+        rootCmd.Flags().StringSliceVar(&amp;include, "include", []string{}, "include directories")
+
+        // Performance flags
+        rootCmd.Flags().IntVar(&amp;threads, "threads", 0, "number of threads (default: CPU cores)")
+        rootCmd.Flags().IntVar(&amp;depth, "depth", 0, "maximum search depth (0 = unlimited)")
+        rootCmd.Flags().BoolVar(&amp;followLinks, "follow-symlinks", false, "follow symbolic links")
+
+        // Output flags
+        rootCmd.Flags().StringVar(&amp;format, "format", "path", "output format (path, detailed, json)")
+        rootCmd.Flags().IntVar(&amp;maxResults, "max-results", config.DefaultMaxResults, "maximum number of results")
+}</span>
+
+func initConfig() <span class="cov0" title="0">{
+        if cfgFile != "" </span><span class="cov0" title="0">{
+                config.SetConfigFile(cfgFile)
+        }</span>
+
+        <span class="cov0" title="0">if err := config.Load(); err != nil </span><span class="cov0" title="0">{
+                if verbose </span><span class="cov0" title="0">{
+                        fmt.Fprintf(os.Stderr, "Warning: Could not load config: %v\n", err)
+                }</span>
+        }
+}
+
+func runSearch(_ *cobra.Command, args []string) error <span class="cov0" title="0">{
+        var pattern string
+        if len(args) &gt; 0 </span><span class="cov0" title="0">{
+                pattern = args[0]
+        }</span>
+
+        <span class="cov0" title="0">if pattern == "" </span><span class="cov0" title="0">{
+                return fmt.Errorf("search pattern is required")
+        }</span>
+
+        // Create search configuration
+        <span class="cov0" title="0">searchConfig := &amp;search.Config{
+                Pattern:     pattern,
+                Advanced:    advanced,
+                Extensions:  extensions,
+                Size:        size,
+                Mtime:       mtime,
+                Content:     content,
+                Exclude:     exclude,
+                Include:     include,
+                Threads:     threads,
+                Depth:       depth,
+                FollowLinks: followLinks,
+                MaxResults:  maxResults,
+                Verbose:     verbose,
+        }
+
+        // Create searcher
+        searcher, err := search.New(searchConfig)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to create searcher: %w", err)
+        }</span>
+
+        // Perform search
+        <span class="cov0" title="0">results, err := searcher.Search()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("search failed: %w", err)
+        }</span>
+
+        // Output results
+        <span class="cov0" title="0">outputConfig := &amp;output.Config{
+                Format:  format,
+                Verbose: verbose,
+        }
+
+        formatter := output.New(outputConfig)
+        return formatter.Print(results)</span>
+}
+
+func main() <span class="cov0" title="0">{
+        if err := rootCmd.Execute(); err != nil </span><span class="cov0" title="0">{
+                fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+                os.Exit(1)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Package config provides configuration management for go-locate
+package config
+
+import (
+        "fmt"
+        "os"
+        "path/filepath"
+
+        "github.com/spf13/viper"
+)
+
+// Config holds the application configuration
+type Config struct {
+        Search SearchConfig `mapstructure:"search"`
+        Output OutputConfig `mapstructure:"output"`
+}
+
+// SearchConfig holds search-related configuration
+type SearchConfig struct {
+        ExcludeDirs    []string `mapstructure:"exclude_dirs"`
+        IncludeDirs    []string `mapstructure:"include_dirs"`
+        MaxDepth       int      `mapstructure:"max_depth"`
+        FollowSymlinks bool     `mapstructure:"follow_symlinks"`
+        DefaultThreads int      `mapstructure:"default_threads"`
+}
+
+// OutputConfig holds output-related configuration
+type OutputConfig struct {
+        Format     string `mapstructure:"format"`
+        Color      bool   `mapstructure:"color"`
+        MaxResults int    `mapstructure:"max_results"`
+}
+
+var (
+        cfg        *Config
+        configFile string
+)
+
+// SetConfigFile sets the config file path
+func SetConfigFile(file string) <span class="cov0" title="0">{
+        configFile = file
+}</span>
+
+// Load loads the configuration from file
+func Load() error <span class="cov0" title="0">{
+        viper.SetConfigName(".glocate")
+        viper.SetConfigType("toml")
+
+        if configFile != "" </span><span class="cov0" title="0">{
+                viper.SetConfigFile(configFile)
+        }</span> else<span class="cov0" title="0"> {
+                // Add config search paths
+                home, err := os.UserHomeDir()
+                if err == nil </span><span class="cov0" title="0">{
+                        viper.AddConfigPath(home)
+                }</span>
+                <span class="cov0" title="0">viper.AddConfigPath(".")</span>
+        }
+
+        // Set defaults
+        <span class="cov0" title="0">setDefaults()
+
+        // Read config file
+        if err := viper.ReadInConfig(); err != nil </span><span class="cov0" title="0">{
+                if _, ok := err.(viper.ConfigFileNotFoundError); ok </span><span class="cov0" title="0">{
+                        // Config file not found, use defaults
+                        return nil
+                }</span>
+                <span class="cov0" title="0">return fmt.Errorf("error reading config file: %w", err)</span>
+        }
+
+        // Unmarshal config
+        <span class="cov0" title="0">cfg = &amp;Config{}
+        if err := viper.Unmarshal(cfg); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("error unmarshaling config: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Get returns the current configuration
+func Get() *Config <span class="cov0" title="0">{
+        if cfg == nil </span><span class="cov0" title="0">{
+                cfg = &amp;Config{}
+                setDefaults()
+        }</span>
+        <span class="cov0" title="0">return cfg</span>
+}
+
+const (
+        // DefaultMaxDepth is the default maximum search depth
+        DefaultMaxDepth = 20
+        // DefaultMaxResults is the default maximum number of results
+        DefaultMaxResults = 1000
+)
+
+// setDefaults sets default configuration values
+func setDefaults() <span class="cov0" title="0">{
+        // Search defaults
+        viper.SetDefault("search.exclude_dirs", []string{"/proc", "/sys", "/dev", "/tmp"})
+        viper.SetDefault("search.include_dirs", []string{})
+        viper.SetDefault("search.max_depth", DefaultMaxDepth)
+        viper.SetDefault("search.follow_symlinks", false)
+        viper.SetDefault("search.default_threads", 0) // 0 means use CPU count
+
+        // Output defaults
+        viper.SetDefault("output.format", "path")
+        viper.SetDefault("output.color", true)
+        viper.SetDefault("output.max_results", DefaultMaxResults)
+}</span>
+
+// GetConfigPath returns the path to the config file
+func GetConfigPath() string <span class="cov0" title="0">{
+        if configFile != "" </span><span class="cov0" title="0">{
+                return configFile
+        }</span>
+
+        <span class="cov0" title="0">home, err := os.UserHomeDir()
+        if err != nil </span><span class="cov0" title="0">{
+                return ".glocate.toml"
+        }</span>
+
+        <span class="cov0" title="0">return filepath.Join(home, ".glocate.toml")</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">// Package output provides result formatting and display functionality
+package output
+
+import (
+        "encoding/json"
+        "fmt"
+        "os"
+        "path/filepath"
+        "strings"
+        "time"
+
+        "github.com/Gosayram/go-locate/internal/search"
+)
+
+// Config holds output configuration
+type Config struct {
+        Format  string
+        Verbose bool
+        Color   bool
+}
+
+// Formatter handles result output formatting
+type Formatter struct {
+        config *Config
+}
+
+// New creates a new formatter instance
+func New(config *Config) *Formatter <span class="cov0" title="0">{
+        if config == nil </span><span class="cov0" title="0">{
+                config = &amp;Config{
+                        Format: "path",
+                        Color:  true,
+                }
+        }</span>
+        <span class="cov0" title="0">return &amp;Formatter{config: config}</span>
+}
+
+// Print outputs the search results
+func (f *Formatter) Print(results []*search.Result) error <span class="cov0" title="0">{
+        if len(results) == 0 </span><span class="cov0" title="0">{
+                if f.config.Verbose </span><span class="cov0" title="0">{
+                        fmt.Println("No results found")
+                }</span>
+                <span class="cov0" title="0">return nil</span>
+        }
+
+        <span class="cov0" title="0">switch f.config.Format </span>{
+        case "json":<span class="cov0" title="0">
+                return f.printJSON(results)</span>
+        case "detailed":<span class="cov0" title="0">
+                return f.printDetailed(results)</span>
+        default:<span class="cov0" title="0">
+                return f.printPath(results)</span>
+        }
+}
+
+// printPath prints only the file paths
+func (f *Formatter) printPath(results []*search.Result) error <span class="cov0" title="0">{
+        for _, result := range results </span><span class="cov0" title="0">{
+                if f.config.Color &amp;&amp; result.IsDir </span><span class="cov0" title="0">{
+                        fmt.Printf("\033[34m%s\033[0m\n", result.Path) // Blue for directories
+                }</span> else<span class="cov0" title="0"> {
+                        fmt.Println(result.Path)
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+// printDetailed prints detailed information about each result
+func (f *Formatter) printDetailed(results []*search.Result) error <span class="cov0" title="0">{
+        for _, result := range results </span><span class="cov0" title="0">{
+                var typeStr string
+                if result.IsDir </span><span class="cov0" title="0">{
+                        typeStr = "DIR"
+                }</span> else<span class="cov0" title="0"> {
+                        typeStr = "FILE"
+                }</span>
+
+                <span class="cov0" title="0">sizeStr := f.formatSize(result.Size)
+                timeStr := result.ModTime.Format("2006-01-02 15:04:05")
+
+                if f.config.Color </span><span class="cov0" title="0">{
+                        if result.IsDir </span><span class="cov0" title="0">{
+                                fmt.Printf("\033[34m%-4s\033[0m %8s %s \033[34m%s\033[0m\n",
+                                        typeStr, sizeStr, timeStr, result.Path)
+                        }</span> else<span class="cov0" title="0"> {
+                                fmt.Printf("%-4s %8s %s %s\n",
+                                        typeStr, sizeStr, timeStr, result.Path)
+                        }</span>
+                } else<span class="cov0" title="0"> {
+                        fmt.Printf("%-4s %8s %s %s\n",
+                                typeStr, sizeStr, timeStr, result.Path)
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+// printJSON prints results in JSON format
+func (f *Formatter) printJSON(results []*search.Result) error <span class="cov0" title="0">{
+        encoder := json.NewEncoder(os.Stdout)
+        encoder.SetIndent("", "  ")
+
+        output := map[string]interface{}{
+                "results":   results,
+                "count":     len(results),
+                "timestamp": time.Now().Format(time.RFC3339),
+        }
+
+        return encoder.Encode(output)
+}</span>
+
+// formatSize formats file size in human-readable format
+func (f *Formatter) formatSize(size int64) string <span class="cov0" title="0">{
+        const unit = 1024
+        if size &lt; unit </span><span class="cov0" title="0">{
+                return fmt.Sprintf("%dB", size)
+        }</span>
+
+        <span class="cov0" title="0">div, exp := int64(unit), 0
+        for n := size / unit; n &gt;= unit; n /= unit </span><span class="cov0" title="0">{
+                div *= unit
+                exp++
+        }</span>
+
+        <span class="cov0" title="0">units := []string{"K", "M", "G", "T", "P", "E"}
+        return fmt.Sprintf("%.1f%s", float64(size)/float64(div), units[exp])</span>
+}
+
+// PrintSummary prints a summary of the search operation
+func (f *Formatter) PrintSummary(results []*search.Result, duration time.Duration) <span class="cov0" title="0">{
+        if !f.config.Verbose </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">fileCount := 0
+        dirCount := 0
+
+        for _, result := range results </span><span class="cov0" title="0">{
+                if result.IsDir </span><span class="cov0" title="0">{
+                        dirCount++
+                }</span> else<span class="cov0" title="0"> {
+                        fileCount++
+                }</span>
+        }
+
+        <span class="cov0" title="0">fmt.Fprintf(os.Stderr, "\nSearch completed in %v\n", duration)
+        fmt.Fprintf(os.Stderr, "Found %d files and %d directories\n", fileCount, dirCount)</span>
+}
+
+// PrintError prints an error message
+func (f *Formatter) PrintError(err error) <span class="cov0" title="0">{
+        if f.config.Color </span><span class="cov0" title="0">{
+                fmt.Fprintf(os.Stderr, "\033[31mError:\033[0m %v\n", err)
+        }</span> else<span class="cov0" title="0"> {
+                fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        }</span>
+}
+
+// PrintWarning prints a warning message
+func (f *Formatter) PrintWarning(msg string) <span class="cov0" title="0">{
+        if !f.config.Verbose </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">if f.config.Color </span><span class="cov0" title="0">{
+                fmt.Fprintf(os.Stderr, "\033[33mWarning:\033[0m %s\n", msg)
+        }</span> else<span class="cov0" title="0"> {
+                fmt.Fprintf(os.Stderr, "Warning: %s\n", msg)
+        }</span>
+}
+
+// GetResultStats returns statistics about the results
+func (f *Formatter) GetResultStats(results []*search.Result) map[string]interface{} <span class="cov0" title="0">{
+        stats := make(map[string]interface{})
+
+        fileCount := 0
+        dirCount := 0
+        totalSize := int64(0)
+        extensions := make(map[string]int)
+
+        for _, result := range results </span><span class="cov0" title="0">{
+                if result.IsDir </span><span class="cov0" title="0">{
+                        dirCount++
+                }</span> else<span class="cov0" title="0"> {
+                        fileCount++
+                        totalSize += result.Size
+
+                        ext := strings.ToLower(filepath.Ext(result.Path))
+                        if ext != "" </span><span class="cov0" title="0">{
+                                extensions[ext]++
+                        }</span>
+                }
+        }
+
+        <span class="cov0" title="0">stats["total_results"] = len(results)
+        stats["file_count"] = fileCount
+        stats["directory_count"] = dirCount
+        stats["total_size"] = totalSize
+        stats["total_size_formatted"] = f.formatSize(totalSize)
+        stats["extensions"] = extensions
+
+        return stats</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">// Package search provides file search functionality with various filtering options
+package search
+
+import (
+        "fmt"
+        "os"
+        "path/filepath"
+        "runtime"
+        "strings"
+        "sync"
+        "time"
+)
+
+// Constants
+const (
+        // Default buffer size for results channel
+        defaultResultsBufferSize = 100
+)
+
+// Config holds search configuration
+type Config struct {
+        Pattern     string
+        Advanced    bool
+        Extensions  []string
+        Size        string
+        Mtime       string
+        Content     string
+        Exclude     []string
+        Include     []string
+        Threads     int
+        Depth       int
+        FollowLinks bool
+        MaxResults  int
+        Verbose     bool
+}
+
+// Result represents a search result
+type Result struct {
+        Path    string    `json:"path"`
+        Size    int64     `json:"size"`
+        ModTime time.Time `json:"mod_time"`
+        IsDir   bool      `json:"is_dir"`
+        Mode    string    `json:"mode"`
+}
+
+// Searcher performs file searches
+type Searcher struct {
+        config  *Config
+        results chan *Result
+        done    chan struct{}
+        wg      sync.WaitGroup
+}
+
+// New creates a new searcher instance
+func New(config *Config) (*Searcher, error) <span class="cov3" title="3">{
+        if config == nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("config cannot be nil")
+        }</span>
+
+        <span class="cov2" title="2">if config.Pattern == "" </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("search pattern cannot be empty")
+        }</span>
+
+        // Set default thread count
+        <span class="cov1" title="1">if config.Threads &lt;= 0 </span><span class="cov1" title="1">{
+                config.Threads = runtime.NumCPU()
+        }</span>
+
+        <span class="cov1" title="1">return &amp;Searcher{
+                config:  config,
+                results: make(chan *Result, defaultResultsBufferSize),
+                done:    make(chan struct{}),
+        }, nil</span>
+}
+
+// Search performs the file search
+func (s *Searcher) Search() ([]*Result, error) <span class="cov0" title="0">{
+        var results []*Result
+        var mu sync.Mutex
+
+        // Start result collector
+        go func() </span><span class="cov0" title="0">{
+                for result := range s.results </span><span class="cov0" title="0">{
+                        mu.Lock()
+                        if len(results) &lt; s.config.MaxResults </span><span class="cov0" title="0">{
+                                results = append(results, result)
+                        }</span>
+                        <span class="cov0" title="0">mu.Unlock()</span>
+                }
+        }()
+
+        // Determine search roots
+        <span class="cov0" title="0">searchRoots := s.getSearchRoots()
+
+        // Start search workers
+        for _, root := range searchRoots </span><span class="cov0" title="0">{
+                s.wg.Add(1)
+                go s.searchWorker(root)
+        }</span>
+
+        // Wait for all workers to complete
+        <span class="cov0" title="0">s.wg.Wait()
+        close(s.results)
+
+        return results, nil</span>
+}
+
+// getSearchRoots returns the directories to search
+func (s *Searcher) getSearchRoots() []string <span class="cov2" title="2">{
+        if len(s.config.Include) &gt; 0 </span><span class="cov1" title="1">{
+                return s.config.Include
+        }</span>
+
+        // Default search roots
+        <span class="cov1" title="1">roots := []string{"/"}
+
+        // On macOS, also search common user directories
+        if runtime.GOOS == "darwin" </span><span class="cov1" title="1">{
+                if home, err := os.UserHomeDir(); err == nil </span><span class="cov1" title="1">{
+                        roots = append(roots, home)
+                }</span>
+                <span class="cov1" title="1">roots = append(roots, "/Applications", "/usr/local")</span>
+        }
+
+        <span class="cov1" title="1">return roots</span>
+}
+
+// searchWorker performs search in a specific directory tree
+func (s *Searcher) searchWorker(root string) <span class="cov0" title="0">{
+        defer s.wg.Done()
+
+        // Add support for parallel search
+        err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error </span><span class="cov0" title="0">{
+                if err != nil </span><span class="cov0" title="0">{
+                        // Skip directories we can't access
+                        if s.config.Verbose </span><span class="cov0" title="0">{
+                                fmt.Fprintf(os.Stderr, "Warning: Cannot access %s: %v\n", path, err)
+                        }</span>
+                        <span class="cov0" title="0">return nil</span>
+                }
+
+                // Check if we should exclude this path (e.g. /proc, /sys, /dev, /tmp)
+                <span class="cov0" title="0">if s.shouldExclude(path) </span><span class="cov0" title="0">{
+                        if info.IsDir() </span><span class="cov0" title="0">{
+                                return filepath.SkipDir
+                        }</span>
+                        <span class="cov0" title="0">return nil</span>
+                }
+
+                // Check depth limit
+                <span class="cov0" title="0">if s.config.Depth &gt; 0 </span><span class="cov0" title="0">{
+                        depth := strings.Count(strings.TrimPrefix(path, root), string(os.PathSeparator))
+                        if depth &gt; s.config.Depth </span><span class="cov0" title="0">{
+                                if info.IsDir() </span><span class="cov0" title="0">{
+                                        return filepath.SkipDir
+                                }</span>
+                                <span class="cov0" title="0">return nil</span>
+                        }
+                }
+
+                // Check if this matches our search criteria
+                <span class="cov0" title="0">if s.matches(path, info) </span><span class="cov0" title="0">{
+                        result := &amp;Result{
+                                Path:    path,
+                                Size:    info.Size(),
+                                ModTime: info.ModTime(),
+                                IsDir:   info.IsDir(),
+                                Mode:    info.Mode().String(),
+                        }
+
+                        select </span>{
+                        case s.results &lt;- result:<span class="cov0" title="0"></span>
+                        case &lt;-s.done:<span class="cov0" title="0">
+                                return fmt.Errorf("search canceled")</span>
+                        }
+                }
+
+                <span class="cov0" title="0">return nil</span>
+        })
+
+        <span class="cov0" title="0">if err != nil &amp;&amp; s.config.Verbose </span><span class="cov0" title="0">{
+                fmt.Fprintf(os.Stderr, "Warning: Error walking %s: %v\n", root, err)
+        }</span>
+}
+
+// shouldExclude checks if a path should be excluded
+func (s *Searcher) shouldExclude(path string) bool <span class="cov5" title="7">{
+        for _, exclude := range s.config.Exclude </span><span class="cov7" title="13">{
+                if strings.Contains(path, exclude) </span><span class="cov2" title="2">{
+                        return true
+                }</span>
+        }
+
+        // Default exclusions for system directories
+        <span class="cov5" title="5">systemDirs := []string{"/proc", "/sys", "/dev", "/tmp"}
+        for _, sysDir := range systemDirs </span><span class="cov7" title="14">{
+                if strings.HasPrefix(path, sysDir) </span><span class="cov4" title="4">{
+                        return true
+                }</span>
+        }
+
+        <span class="cov1" title="1">return false</span>
+}
+
+// matches checks if a file matches the search criteria
+func (s *Searcher) matches(path string, _ os.FileInfo) bool <span class="cov2" title="2">{
+        filename := filepath.Base(path)
+
+        // Pattern matching
+        if s.config.Advanced </span><span class="cov0" title="0">{
+                // Fuzzy matching - check if pattern characters appear in order
+                if !s.fuzzyMatch(strings.ToLower(filename), strings.ToLower(s.config.Pattern)) </span><span class="cov0" title="0">{
+                        return false
+                }</span>
+        } else<span class="cov2" title="2"> {
+                // Exact or wildcard matching
+                matched, err := filepath.Match(s.config.Pattern, filename)
+                if err != nil || !matched </span><span class="cov0" title="0">{
+                        // Try case-insensitive match
+                        matched, _ = filepath.Match(strings.ToLower(s.config.Pattern), strings.ToLower(filename))
+                        if !matched </span><span class="cov0" title="0">{
+                                return false
+                        }</span>
+                }
+        }
+
+        // Extension filtering
+        <span class="cov2" title="2">if len(s.config.Extensions) &gt; 0 </span><span class="cov2" title="2">{
+                ext := strings.TrimPrefix(filepath.Ext(filename), ".")
+                found := false
+                for _, allowedExt := range s.config.Extensions </span><span class="cov2" title="2">{
+                        if strings.EqualFold(ext, allowedExt) </span><span class="cov2" title="2">{
+                                found = true
+                                break</span>
+                        }
+                }
+                <span class="cov2" title="2">if !found </span><span class="cov0" title="0">{
+                        return false
+                }</span>
+        }
+
+        // Size filtering (basic implementation)
+        // TODO: Implement size filtering
+        // For now, we accept all files regardless of size
+        <span class="cov2" title="2">_ = s.config.Size
+
+        // Modification time filtering (basic implementation)
+        // TODO: Implement mtime filtering
+        // For now, we accept all files regardless of modification time
+        _ = s.config.Mtime
+
+        return true</span>
+}
+
+// fuzzyMatch performs fuzzy string matching
+func (s *Searcher) fuzzyMatch(text, pattern string) bool <span class="cov5" title="7">{
+        if pattern == "" </span><span class="cov1" title="1">{
+                return true
+        }</span>
+        <span class="cov5" title="6">if text == "" </span><span class="cov1" title="1">{
+                return false
+        }</span>
+
+        <span class="cov5" title="5">textIdx := 0
+        for _, patternChar := range pattern </span><span class="cov6" title="10">{
+                found := false
+                for textIdx &lt; len(text) </span><span class="cov10" title="36">{
+                        if rune(text[textIdx]) == patternChar </span><span class="cov6" title="8">{
+                                found = true
+                                textIdx++
+                                break</span>
+                        }
+                        <span class="cov9" title="28">textIdx++</span>
+                }
+                <span class="cov6" title="10">if !found </span><span class="cov2" title="2">{
+                        return false
+                }</span>
+        }
+        <span class="cov3" title="3">return true</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">// Package version provides version information and build details for the application.
+package version
+
+import (
+        "fmt"
+        "runtime"
+        "strings"
+)
+
+// Constants
+const (
+        // ShortCommitHashLength defines the length for shortened commit hashes
+        ShortCommitHashLength = 7
+        // UnknownValue represents unknown build information
+        UnknownValue = "unknown"
+)
+
+// Build-time variables set by linker flags
+var (
+        Version     = "dev"
+        Commit      = "unknown"
+        Date        = "unknown"
+        BuiltBy     = "unknown"
+        BuildNumber = "0"
+)
+
+// GetVersion returns the complete version string
+func GetVersion() string <span class="cov10" title="6">{
+        if BuildNumber != "0" &amp;&amp; BuildNumber != "" </span><span class="cov1" title="1">{
+                return fmt.Sprintf("%s (build %s)", Version, BuildNumber)
+        }</span>
+        <span class="cov9" title="5">return Version</span>
+}
+
+// GetFullVersionInfo returns detailed version information in modern format
+func GetFullVersionInfo() string <span class="cov7" title="4">{
+        var parts []string
+
+        // Main version line
+        versionLine := fmt.Sprintf("glocate %s", GetVersion())
+        if Commit != UnknownValue &amp;&amp; Commit != "" </span><span class="cov6" title="3">{
+                shortCommit := Commit
+                if len(Commit) &gt; ShortCommitHashLength </span><span class="cov4" title="2">{
+                        shortCommit = Commit[:ShortCommitHashLength]
+                }</span>
+                <span class="cov6" title="3">versionLine += fmt.Sprintf(" (%s)", shortCommit)</span>
+        }
+        <span class="cov7" title="4">parts = append(parts, versionLine)
+
+        // Build info line
+        var buildInfo []string
+        if Date != UnknownValue &amp;&amp; Date != "" </span><span class="cov1" title="1">{
+                // Format date more nicely
+                formattedDate := strings.ReplaceAll(Date, "_", " ")
+                buildInfo = append(buildInfo, fmt.Sprintf("built %s", formattedDate))
+        }</span>
+        // TODO: Add build number to the build info
+        <span class="cov7" title="4">if BuiltBy != UnknownValue &amp;&amp; BuiltBy != "" </span><span class="cov1" title="1">{
+                buildInfo = append(buildInfo, fmt.Sprintf("by %s", BuiltBy))
+        }</span>
+        <span class="cov7" title="4">buildInfo = append(buildInfo,
+                fmt.Sprintf("with %s", runtime.Version()),
+                fmt.Sprintf("for %s/%s", runtime.GOOS, runtime.GOARCH))
+
+        if len(buildInfo) &gt; 0 </span><span class="cov7" title="4">{
+                parts = append(parts, strings.Join(buildInfo, " "))
+        }</span>
+
+        <span class="cov7" title="4">return strings.Join(parts, "\n")</span>
+}
+
+// BuildInfo contains build information
+type BuildInfo struct {
+        Version   string
+        Commit    string
+        Date      string
+        BuiltBy   string
+        GoVersion string
+        Platform  string
+}
+
+// Get returns the build information
+func Get() *BuildInfo <span class="cov1" title="1">{
+        return &amp;BuildInfo{
+                Version:   Version,
+                Commit:    Commit,
+                Date:      Date,
+                BuiltBy:   BuiltBy,
+                GoVersion: runtime.Version(),
+                Platform:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+        }
+}</span>
+
+// String returns a formatted version string
+func (bi *BuildInfo) String() string <span class="cov1" title="1">{
+        return fmt.Sprintf("glocate version %s (%s) built on %s by %s using %s for %s",
+                bi.Version, bi.Commit, bi.Date, bi.BuiltBy, bi.GoVersion, bi.Platform)
+}</span>
+
+// Short returns a short version string
+func (bi *BuildInfo) Short() string <span class="cov1" title="1">{
+        return fmt.Sprintf("glocate %s", bi.Version)
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

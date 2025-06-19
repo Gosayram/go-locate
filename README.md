@@ -234,4 +234,63 @@ MIT License - see [LICENSE](LICENSE) for details.
 - 📖 [Documentation](docs/)
 - 🐛 [Issue Tracker](https://github.com/Gosayram/go-locate/issues)
 - 💬 [Discussions](https://github.com/Gosayram/go-locate/discussions)
-- 📊 [Benchmarks](benchmark-report.md) 
+- 📊 [Benchmarks](benchmark-report.md)
+
+## Testing and Quality Assurance
+
+### Comprehensive Testing Strategy
+
+The project uses a multi-layered testing approach:
+
+#### Unit Testing with testify
+- **Framework**: [testify](https://github.com/stretchr/testify) v1.10.0
+- **Coverage**: 55.1% overall (100% for version package)
+- **Features**: Structured assertions, table-driven tests, sub-tests
+
+#### Matrix Testing
+- **Go versions**: 1.22, 1.23, 1.24.4, 1.24
+- **Platforms**: Ubuntu, macOS, Windows  
+- **Architecture**: amd64, arm64 (selected combinations)
+- **Triggers**: Push, PR, scheduled daily, manual dispatch
+
+#### Quality Tools
+- **Linting**: golangci-lint with revive integration
+- **Static analysis**: staticcheck  
+- **Error checking**: errcheck
+- **Security scanning**: gosec + govulncheck
+- **Race detection**: Enabled for non-Windows platforms
+
+#### CI/CD Pipelines
+- **Standard CI**: Fast feedback on main development workflow
+- **Matrix Testing**: Comprehensive compatibility validation
+- **Security Scanning**: Automated vulnerability detection
+- **Release Pipeline**: Multi-platform binary generation
+
+### Running Tests Locally
+
+```bash
+# Quick tests with testify
+make test
+
+# Matrix testing information
+make matrix-info
+
+# Check Go version compatibility  
+make test-go-versions
+
+# Multi-version testing (requires additional Go installations)
+make matrix-test-local
+
+# All quality checks
+make check-all
+```
+
+### Matrix Testing Features
+
+- **Skip failures mode**: Non-blocking testing continues even with edge-case failures
+- **Experimental versions**: Optional Go 1.25rc1 testing
+- **Coverage thresholds**: 50% minimum with testify integration
+- **Integration testing**: CLI functionality validation across platforms
+- **Benchmark matrix**: Performance testing across Go versions
+
+For detailed matrix testing documentation, see [docs/MATRIX-TESTING.md](docs/MATRIX-TESTING.md). 

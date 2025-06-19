@@ -1,0 +1,291 @@
+name: Matrix Testing
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run matrix tests daily at 02:00 UTC to catch compatibility issues early
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_failures:
+        description: 'Skip failures and continue testing other matrix combinations'
+        required: false
+        default: true
+        type: boolean
+      test_experimental:
+        description: 'Include experimental Go versions in matrix'
+        required: false
+        default: false  
+        type: boolean
+
+permissions:
+  contents: read
+
+# Matrix testing constants
+env:
+  # Minimum supported Go version  
+  MIN_GO_VERSION: "1.22"
+  # Current stable Go version
+  STABLE_GO_VERSION: "1.24.4"
+  # Latest Go version for testing
+  LATEST_GO_VERSION: "1.24"
+  # Test timeout duration
+  TEST_TIMEOUT: "10m"
+  # Coverage threshold percentage
+  COVERAGE_THRESHOLD: "50"
+
+jobs:
+  matrix_test:
+    name: Test Go ${{ matrix.go-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      
+    # Skip failures by default for non-blocking testing
+    continue-on-error: ${{ matrix.experimental || github.event.inputs.skip_failures == 'true' }}
+    
+    strategy:
+      # Don't cancel other matrix jobs if one fails (unless critical)
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: 
+          - "1.22"      # Minimum supported version
+          - "1.23"      # Previous stable
+          - "1.24.4"    # Current project version
+          - "1.24"      # Latest stable
+        experimental: [false]
+        
+        # Include experimental versions conditionally
+        include:
+          # Add experimental Go versions when requested
+          - os: ubuntu-latest
+            go-version: "1.25rc1"
+            experimental: true
+            # Only run if experimental testing is enabled
+            include-condition: ${{ github.event.inputs.test_experimental == 'true' }}
+            
+          # Test on additional architectures for stable version
+          - os: ubuntu-latest
+            go-version: "1.24.4"
+            experimental: false
+            goarch: "arm64"
+            
+        # Exclude problematic combinations
+        exclude:
+          # Windows can be flaky with older Go versions
+          - os: windows-latest
+            go-version: "1.22"
+          # macOS compatibility issues with Go 1.22
+          - os: macos-latest  
+            go-version: "1.22"
+    
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        with:
+          disable-sudo: true
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          
+      - name: Display Go Environment
+        run: |
+          echo "Go version: $(go version)"
+          echo "GOOS: $(go env GOOS)"
+          echo "GOARCH: $(go env GOARCH)"
+          echo "GOROOT: $(go env GOROOT)"
+          echo "GOPATH: $(go env GOPATH)"
+          
+      - name: Go Cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
+            ${{ runner.os }}-go-
+            
+      - name: Download Dependencies
+        run: go mod download
+        
+      - name: Verify Dependencies
+        run: go mod verify
+        
+      - name: Run Go Vet
+        run: go vet ./...
+        
+      - name: Run Tests
+        run: |
+          echo "Running tests with timeout ${{ env.TEST_TIMEOUT }}..."
+          go test -v -timeout ${{ env.TEST_TIMEOUT }} ./...
+        
+      - name: Run Tests with Race Detection
+        # Skip race detection on Windows due to performance issues
+        if: runner.os != 'Windows'
+        run: |
+          echo "Running tests with race detection..."
+          go test -v -race -timeout ${{ env.TEST_TIMEOUT }} ./...
+          
+      - name: Run Tests with Coverage
+        run: |
+          echo "Running tests with coverage reporting..."
+          go test -v -coverprofile=coverage.out -covermode=atomic ./...
+          
+      - name: Check Coverage Threshold
+        run: |
+          echo "Checking coverage threshold of ${{ env.COVERAGE_THRESHOLD }}%..."
+          coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Current coverage: ${coverage}%"
+          
+          # Convert to integer for comparison (multiply by 100 to handle decimals)
+          coverage_int=$(echo "$coverage * 100" | awk '{printf "%.0f", $1}')
+          threshold_int=$(echo "${{ env.COVERAGE_THRESHOLD }} * 100" | awk '{printf "%.0f", $1}')
+          
+          if [ "$coverage_int" -lt "$threshold_int" ]; then
+            echo "❌ Coverage ${coverage}% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+            if [ "${{ matrix.experimental }}" != "true" ]; then
+              exit 1
+            else
+              echo "⚠️ Skipping coverage check for experimental version"
+            fi
+          else
+            echo "✅ Coverage ${coverage}% meets threshold ${{ env.COVERAGE_THRESHOLD }}%"
+          fi
+        shell: bash
+        
+      - name: Build Binary
+        run: |
+          echo "Building binary for ${{ runner.os }}/${{ runner.arch }}..."
+          go build -v -o ./bin/glocate-${{ runner.os }}-${{ runner.arch }} ./cmd/glocate
+          
+      - name: Test Binary Execution
+        run: |
+          echo "Testing binary execution..."
+          ./bin/glocate-${{ runner.os }}-${{ runner.arch }} --version
+          ./bin/glocate-${{ runner.os }}-${{ runner.arch }} --help
+        shell: bash
+        
+      - name: Run Integration Tests
+        run: |
+          echo "Running basic integration tests..."
+          mkdir -p test-files
+          echo "package main" > test-files/main.go
+          echo "func main() {}" >> test-files/main.go
+          echo "# Test README" > test-files/README.md
+          
+          # Test basic search
+          ./bin/glocate-${{ runner.os }}-${{ runner.arch }} "*.go" --include ./test-files --max-results 5
+          
+          # Test fuzzy search  
+          ./bin/glocate-${{ runner.os }}-${{ runner.arch }} "main" --advanced --include ./test-files --max-results 3
+          
+          # Test JSON output
+          ./bin/glocate-${{ runner.os }}-${{ runner.arch }} "*.md" --format json --include ./test-files --max-results 2
+          
+          echo "✅ Integration tests passed"
+        shell: bash
+        
+      - name: Upload Coverage to Codecov
+        # Only upload coverage for stable versions to avoid noise
+        if: matrix.go-version == env.STABLE_GO_VERSION && matrix.experimental == false
+        uses: codecov/codecov-action@5b5b43bb2e7d61ab6e33b6ce6e67e7746d43b93b # v5.2.1
+        with:
+          file: ./coverage.out
+          flags: ${{ runner.os }}-go${{ matrix.go-version }}
+          name: go-locate-${{ matrix.os }}-${{ matrix.go-version }}
+          
+      - name: Archive Test Results
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: test-results-${{ matrix.os }}-go${{ matrix.go-version }}
+          path: |
+            coverage.out
+            ./bin/glocate-*
+          retention-days: 30
+
+  matrix_summary:
+    name: Matrix Test Summary
+    needs: matrix_test
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check Matrix Results
+        run: |
+          echo "Matrix Testing Summary"
+          echo "====================="
+          
+          # Check if any critical tests failed
+          if [ "${{ needs.matrix_test.result }}" == "failure" ]; then
+            echo "❌ Some matrix tests failed"
+            echo "::warning::Matrix tests completed with failures - check individual job results"
+          elif [ "${{ needs.matrix_test.result }}" == "success" ]; then
+            echo "✅ All matrix tests passed successfully"
+          else
+            echo "⚠️ Matrix tests completed with mixed results"
+          fi
+          
+          echo ""
+          echo "Matrix Configuration:"
+          echo "- Minimum Go version: ${{ env.MIN_GO_VERSION }}"
+          echo "- Stable Go version: ${{ env.STABLE_GO_VERSION }}"
+          echo "- Latest Go version: ${{ env.LATEST_GO_VERSION }}"
+          echo "- Coverage threshold: ${{ env.COVERAGE_THRESHOLD }}%"
+          echo "- Skip failures: ${{ github.event.inputs.skip_failures || 'true' }}"
+          echo "- Test experimental: ${{ github.event.inputs.test_experimental || 'false' }}"
+          
+      - name: Report Status
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Matrix testing completed on schedule/manual trigger"
+          echo "Results available in individual job logs and artifacts"
+
+  benchmark_matrix:
+    name: Benchmark Go ${{ matrix.go-version }}
+    runs-on: ubuntu-latest
+    # Run benchmarks only for stable versions
+    if: github.event_name == 'schedule' || github.event.inputs.test_experimental == 'true'
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.23", "1.24.4", "1.24"]
+        
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          
+      - name: Run Benchmarks
+        run: |
+          echo "Running benchmarks for Go ${{ matrix.go-version }}..."
+          go test -bench=. -benchmem -run=^$ ./...
+          
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: benchmarks-go${{ matrix.go-version }}
+          path: |
+            benchmark-*.txt
+          retention-days: 14 

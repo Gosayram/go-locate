@@ -113,11 +113,15 @@ func BenchmarkConcurrentSearch(b *testing.B) {
 	// Create files for concurrent testing
 	for i := 0; i < 20; i++ {
 		dir := filepath.Join(tempDir, fmt.Sprintf("dir%d", i))
-		os.MkdirAll(dir, 0755)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			b.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
 
 		for j := 0; j < 10; j++ {
 			file := filepath.Join(dir, fmt.Sprintf("test%d.go", j))
-			os.WriteFile(file, []byte("package main\nfunc main() {}"), 0644)
+			if err := os.WriteFile(file, []byte("package main\nfunc main() {}"), 0644); err != nil {
+				b.Fatalf("Failed to write file %s: %v", file, err)
+			}
 		}
 	}
 
@@ -173,7 +177,9 @@ func BenchmarkPatternMatching(b *testing.B) {
 		b.Run(tt.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				for _, file := range tt.files {
-					filepath.Match(tt.pattern, file)
+					if _, err := filepath.Match(tt.pattern, file); err != nil {
+						b.Errorf("Pattern match error for pattern %s and file %s: %v", tt.pattern, file, err)
+					}
 				}
 			}
 		})
@@ -217,15 +223,21 @@ func BenchmarkLargeDirectorySearch(b *testing.B) {
 	// Create a large directory structure
 	for i := 0; i < 50; i++ {
 		dir := filepath.Join(tempDir, fmt.Sprintf("level1_%d", i))
-		os.MkdirAll(dir, 0755)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			b.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
 
 		for j := 0; j < 5; j++ {
 			subdir := filepath.Join(dir, fmt.Sprintf("level2_%d", j))
-			os.MkdirAll(subdir, 0755)
+			if err := os.MkdirAll(subdir, 0755); err != nil {
+				b.Fatalf("Failed to create subdirectory %s: %v", subdir, err)
+			}
 
 			for k := 0; k < 3; k++ {
 				file := filepath.Join(subdir, fmt.Sprintf("file_%d.go", k))
-				os.WriteFile(file, []byte("package main"), 0644)
+				if err := os.WriteFile(file, []byte("package main"), 0644); err != nil {
+					b.Fatalf("Failed to write file %s: %v", file, err)
+				}
 			}
 		}
 	}

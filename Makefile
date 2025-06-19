@@ -16,6 +16,26 @@ GOPATH ?= $(shell go env GOPATH)
 GOLANGCI_LINT = $(GOPATH)/bin/golangci-lint
 STATICCHECK = $(GOPATH)/bin/staticcheck
 GOIMPORTS = $(GOPATH)/bin/goimports
+GOSEC = $(GOPATH)/bin/gosec
+ERRCHECK = $(GOPATH)/bin/errcheck
+
+# Security scanning constants
+GOSEC_VERSION := v2.22.5
+# NOTE: gosec v2.22.5 uses hardcoded CWE taxonomy version 4.4 (2021-03-15)
+# Latest CWE version is 4.17 (2025-04-03), but gosec doesn't allow configuration
+GOSEC_OUTPUT_FORMAT := sarif
+GOSEC_REPORT_FILE := gosec-report.sarif
+GOSEC_JSON_REPORT := gosec-report.json
+GOSEC_SEVERITY := medium
+
+# Vulnerability checking constants
+GOVULNCHECK_VERSION := latest
+GOVULNCHECK = $(GOPATH)/bin/govulncheck
+VULNCHECK_OUTPUT_FORMAT := json
+VULNCHECK_REPORT_FILE := vulncheck-report.json
+
+# Error checking constants
+ERRCHECK_VERSION := v1.9.0
 
 # Build flags
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -27,6 +47,13 @@ LDFLAGS=-ldflags "-s -w -X 'github.com/Gosayram/go-locate/internal/version.Versi
 				  -X 'github.com/Gosayram/go-locate/internal/version.Commit=$(COMMIT)' \
 				  -X 'github.com/Gosayram/go-locate/internal/version.Date=$(DATE)' \
 				  -X 'github.com/Gosayram/go-locate/internal/version.BuiltBy=$(BUILT_BY)'"
+
+# Matrix testing constants
+MATRIX_MIN_GO_VERSION := 1.22
+MATRIX_STABLE_GO_VERSION := 1.24.4
+MATRIX_LATEST_GO_VERSION := 1.24
+MATRIX_TEST_TIMEOUT := 10m
+MATRIX_COVERAGE_THRESHOLD := 50
 
 # Ensure the output directory exists
 $(OUTPUT_DIR):
@@ -55,7 +82,7 @@ help:
 	@echo ""
 	@echo "  Testing and Validation:"
 	@echo "  ======================"
-	@echo "  test            - Run all tests with standard coverage"
+	@echo "  test            - Run all tests with standard coverage (uses testify)"
 	@echo "  test-with-race  - Run all tests with race detection and coverage"
 	@echo "  quicktest       - Run quick tests without additional checks"
 	@echo "  test-coverage   - Run tests with coverage report"
@@ -79,7 +106,15 @@ help:
 	@echo "  lint            - Run golangci-lint"
 	@echo "  lint-fix        - Run linters with auto-fix"
 	@echo "  staticcheck     - Run staticcheck static analyzer"
-	@echo "  check-all       - Run all code quality checks"
+	@echo "  errcheck        - Check for unchecked errors in Go code"
+	@echo "  security-scan   - Run gosec security scanner (SARIF output)"
+	@echo "  security-scan-json - Run gosec security scanner (JSON output)"
+	@echo "  security-scan-html - Run gosec security scanner (HTML output)"
+	@echo "  security-scan-ci - Run gosec security scanner for CI (no-fail mode)"
+	@echo "  vuln-check      - Run govulncheck vulnerability scanner"
+	@echo "  vuln-check-json - Run govulncheck vulnerability scanner (JSON output)"
+	@echo "  vuln-check-ci   - Run govulncheck vulnerability scanner for CI"
+	@echo "  check-all       - Run all code quality checks including error checking, security and vulnerability checks"
 	@echo ""
 	@echo "  Dependencies:"
 	@echo "  ============="
@@ -126,6 +161,10 @@ help:
 	@echo "  ci-test         - Run CI tests"
 	@echo "  ci-build        - Run CI build"
 	@echo "  ci-release      - Complete CI release pipeline"
+	@echo "  matrix-test-local - Run matrix tests locally with multiple Go versions"
+	@echo "  matrix-info     - Show matrix testing configuration and features"
+	@echo "  test-multi-go   - Test Go version compatibility"
+	@echo "  test-go-versions - Check current Go version against requirements"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build                    - Build the binary"
@@ -167,6 +206,9 @@ install-tools:
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install golang.org/x/tools/cmd/goimports@latest
+	go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
+	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	go install github.com/kisielk/errcheck@$(ERRCHECK_VERSION)
 	@echo "Development tools installed successfully"
 
 # Build targets
@@ -362,13 +404,110 @@ staticcheck:
 		echo "Staticcheck completed!"; \
 	fi
 
+# Run errcheck tool to find unchecked errors
+.PHONY: errcheck errcheck-install
+errcheck-install:
+	@if ! command -v $(ERRCHECK) >/dev/null 2>&1; then \
+		echo "errcheck is not installed. Installing errcheck $(ERRCHECK_VERSION)..."; \
+		go install github.com/kisielk/errcheck@$(ERRCHECK_VERSION); \
+		echo "errcheck installed successfully!"; \
+	else \
+		echo "errcheck is already installed"; \
+	fi
+
+errcheck: errcheck-install
+	@echo "Running errcheck to find unchecked errors..."
+	@if [ -f .errcheck_excludes.txt ]; then \
+		$(ERRCHECK) -exclude .errcheck_excludes.txt ./...; \
+	else \
+		$(ERRCHECK) ./...; \
+	fi
+	@echo "errcheck completed!"
+
 .PHONY: lint-fix
 lint-fix:
 	@echo "Running linters with auto-fix..."
 	@$(GOLANGCI_LINT) run --fix
 	@echo "Auto-fix completed"
 
-check-all: fmt vet imports lint staticcheck
+# Security scanning with gosec
+.PHONY: security-scan security-scan-json security-scan-html security-install-gosec
+
+security-install-gosec:
+	@if ! command -v $(GOSEC) >/dev/null 2>&1; then \
+		echo "gosec is not installed. Installing gosec $(GOSEC_VERSION)..."; \
+		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
+		echo "gosec installed successfully!"; \
+	else \
+		echo "gosec is already installed"; \
+	fi
+
+security-scan: security-install-gosec
+	@echo "Running gosec security scan..."
+	@if [ -f .gosec.json ]; then \
+		$(GOSEC) -quiet -conf .gosec.json -fmt $(GOSEC_OUTPUT_FORMAT) -out $(GOSEC_REPORT_FILE) -severity $(GOSEC_SEVERITY) ./...; \
+	else \
+		$(GOSEC) -quiet -fmt $(GOSEC_OUTPUT_FORMAT) -out $(GOSEC_REPORT_FILE) -severity $(GOSEC_SEVERITY) ./...; \
+	fi
+	@echo "Security scan completed. Report saved to $(GOSEC_REPORT_FILE)"
+	@echo "To view issues: cat $(GOSEC_REPORT_FILE)"
+
+security-scan-json: security-install-gosec
+	@echo "Running gosec security scan with JSON output..."
+	@if [ -f .gosec.json ]; then \
+		$(GOSEC) -quiet -conf .gosec.json -fmt json -out $(GOSEC_JSON_REPORT) -severity $(GOSEC_SEVERITY) ./...; \
+	else \
+		$(GOSEC) -quiet -fmt json -out $(GOSEC_JSON_REPORT) -severity $(GOSEC_SEVERITY) ./...; \
+	fi
+	@echo "Security scan completed. JSON report saved to $(GOSEC_JSON_REPORT)"
+
+security-scan-html: security-install-gosec
+	@echo "Running gosec security scan with HTML output..."
+	@if [ -f .gosec.json ]; then \
+		$(GOSEC) -quiet -conf .gosec.json -fmt html -out gosec-report.html -severity $(GOSEC_SEVERITY) ./...; \
+	else \
+		$(GOSEC) -quiet -fmt html -out gosec-report.html -severity $(GOSEC_SEVERITY) ./...; \
+	fi
+	@echo "Security scan completed. HTML report saved to gosec-report.html"
+
+security-scan-ci: security-install-gosec
+	@echo "Running gosec security scan for CI..."
+	@if [ -f .gosec.json ]; then \
+		$(GOSEC) -quiet -conf .gosec.json -fmt $(GOSEC_OUTPUT_FORMAT) -out $(GOSEC_REPORT_FILE) -no-fail -quiet ./...; \
+	else \
+		$(GOSEC) -quiet -fmt $(GOSEC_OUTPUT_FORMAT) -out $(GOSEC_REPORT_FILE) -no-fail -quiet ./...; \
+	fi
+	@echo "CI security scan completed"
+
+# Vulnerability checking with govulncheck
+.PHONY: vuln-check vuln-check-json vuln-install-govulncheck vuln-check-ci
+
+vuln-install-govulncheck:
+	@if ! command -v $(GOVULNCHECK) >/dev/null 2>&1; then \
+		echo "govulncheck is not installed. Installing govulncheck $(GOVULNCHECK_VERSION)..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
+		echo "govulncheck installed successfully!"; \
+	else \
+		echo "govulncheck is already installed"; \
+	fi
+
+vuln-check: vuln-install-govulncheck
+	@echo "Running govulncheck vulnerability scan..."
+	@$(GOVULNCHECK) ./...
+	@echo "Vulnerability scan completed successfully"
+
+vuln-check-json: vuln-install-govulncheck
+	@echo "Running govulncheck vulnerability scan with JSON output..."
+	@$(GOVULNCHECK) -json ./... > $(VULNCHECK_REPORT_FILE)
+	@echo "Vulnerability scan completed. JSON report saved to $(VULNCHECK_REPORT_FILE)"
+	@echo "To view results: cat $(VULNCHECK_REPORT_FILE)"
+
+vuln-check-ci: vuln-install-govulncheck
+	@echo "Running govulncheck vulnerability scan for CI..."
+	@$(GOVULNCHECK) -json ./... > $(VULNCHECK_REPORT_FILE) || echo "Vulnerabilities found, check report"
+	@echo "CI vulnerability scan completed. Report saved to $(VULNCHECK_REPORT_FILE)"
+
+check-all: fmt vet imports lint staticcheck errcheck security-scan vuln-check
 	@echo "All code quality checks completed"
 
 # Configuration targets
@@ -442,6 +581,8 @@ clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(OUTPUT_DIR)
 	rm -f coverage.out coverage.html benchmark-report.md
+	rm -f $(GOSEC_REPORT_FILE) $(GOSEC_JSON_REPORT) gosec-report.html
+	rm -f $(VULNCHECK_REPORT_FILE)
 	rm -rf testdata/integration testdata/benchmark
 	go clean -cache
 	@echo "Cleanup completed"
@@ -567,6 +708,8 @@ ci-lint:
 	go vet ./...
 	$(GOLANGCI_LINT) run --timeout=10m
 	$(STATICCHECK) ./...
+	$(MAKE) security-scan-ci
+	$(MAKE) vuln-check-ci
 	@echo "CI linting completed"
 
 ci-test:
@@ -591,4 +734,78 @@ ci-build:
 	@echo "CI build completed"
 
 ci-release: ci-lint ci-test ci-build test-integration-fast
-	@echo "CI release pipeline completed" 
+	@echo "CI release pipeline completed"
+
+# Matrix testing and CI management
+.PHONY: matrix-test matrix-test-local test-multi-go test-go-versions
+
+matrix-test-local:
+	@echo "Running matrix tests locally..."
+	@echo "Testing with multiple Go versions..."
+	@if command -v go1.22 >/dev/null 2>&1; then \
+		echo "Testing with Go 1.22..."; \
+		go1.22 test -v -timeout $(MATRIX_TEST_TIMEOUT) ./...; \
+	else \
+		echo "Go 1.22 not available, skipping"; \
+	fi
+	@if command -v go1.23 >/dev/null 2>&1; then \
+		echo "Testing with Go 1.23..."; \
+		go1.23 test -v -timeout $(MATRIX_TEST_TIMEOUT) ./...; \
+	else \
+		echo "Go 1.23 not available, skipping"; \
+	fi
+	@echo "Testing with current Go version..."
+	go test -v -timeout $(MATRIX_TEST_TIMEOUT) ./...
+	@echo "Local matrix testing completed"
+
+test-multi-go:
+	@echo "Testing compatibility with multiple Go versions..."
+	@echo "Current Go version: $(shell go version)"
+	@echo "Minimum supported: $(MATRIX_MIN_GO_VERSION)"
+	@echo "Stable version: $(MATRIX_STABLE_GO_VERSION)"
+	@echo "Latest version: $(MATRIX_LATEST_GO_VERSION)"
+	@echo ""
+	@echo "Running tests with current Go version..."
+	go test -v ./...
+	@echo ""
+	@echo "To test with multiple Go versions, install them with:"
+	@echo "  go install golang.org/dl/go1.22@latest && go1.22 download"
+	@echo "  go install golang.org/dl/go1.23@latest && go1.23 download"
+	@echo "Then run: make matrix-test-local"
+
+test-go-versions:
+	@echo "Checking Go version compatibility..."
+	@current_version=$$(go version | awk '{print $$3}' | sed 's/go//'); \
+	min_version="$(MATRIX_MIN_GO_VERSION)"; \
+	echo "Current Go version: $$current_version"; \
+	echo "Minimum required: $$min_version"; \
+	if [ "$$(printf '%s\n%s\n' "$$min_version" "$$current_version" | sort -V | head -n1)" = "$$min_version" ]; then \
+		echo "✅ Go version $$current_version meets minimum requirement"; \
+	else \
+		echo "❌ Go version $$current_version is below minimum $$min_version"; \
+		exit 1; \
+	fi
+
+matrix-info:
+	@echo "Matrix Testing Configuration"
+	@echo "============================"
+	@echo "Minimum Go version: $(MATRIX_MIN_GO_VERSION)"
+	@echo "Stable Go version: $(MATRIX_STABLE_GO_VERSION)"
+	@echo "Latest Go version: $(MATRIX_LATEST_GO_VERSION)"
+	@echo "Test timeout: $(MATRIX_TEST_TIMEOUT)"
+	@echo "Coverage threshold: $(MATRIX_COVERAGE_THRESHOLD)%"
+	@echo ""
+	@echo "Matrix Testing Features:"
+	@echo "- Tests across Go 1.22, 1.23, 1.24.4, 1.24"
+	@echo "- Cross-platform testing (Linux, macOS, Windows)"
+	@echo "- Optional experimental Go version testing"
+	@echo "- Skip failures option for non-blocking CI"
+	@echo "- Automatic coverage reporting to Codecov"
+	@echo "- Integration tests with binary execution"
+	@echo "- Benchmark testing across Go versions"
+	@echo ""
+	@echo "To trigger matrix testing:"
+	@echo "  1. Push to main/develop branch (automatic)"
+	@echo "  2. Create pull request (automatic)"
+	@echo "  3. Manual trigger via GitHub Actions"
+	@echo "  4. Scheduled daily run at 02:00 UTC" 

@@ -44,3 +44,11 @@ vendor/
 
 # Logs
 *.log 
+
+# Security scan reports
+gosec-report.*
+gosec-results.*
+
+# Binary
+glocate
+glocate.*
