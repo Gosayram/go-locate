@@ -43,4 +43,12 @@ glocate.*
 vendor/
 
 # Logs
-*.log 
+*.log
+
+# Security scan reports
+gosec-report.*
+gosec-results.*
+
+# Binary
+glocate
+glocate.*

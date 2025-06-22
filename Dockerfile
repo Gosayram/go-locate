@@ -55,4 +55,4 @@ CMD ["--help"]
 LABEL org.opencontainers.image.title="glocate"
 LABEL org.opencontainers.image.description="Modern file search tool - replacement for locate command"
 LABEL org.opencontainers.image.source="https://github.com/Gosayram/go-locate"
-LABEL org.opencontainers.image.licenses="MIT" 
+LABEL org.opencontainers.image.licenses="MIT"

@@ -126,14 +126,14 @@ jobs:
           if [ "$GOOS" = "windows" ]; then
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
-          
+
           LDFLAGS="-s -w -X github.com/Gosayram/go-locate/internal/version.Version=${{ env.VERSION_NO_V }}"
           LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-locate/internal/version.Commit=${{ github.sha }}"
           LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-locate/internal/version.Date=$(date -u +%Y-%m-%d_%H:%M:%S)"
           LDFLAGS="$LDFLAGS -X github.com/Gosayram/go-locate/internal/version.BuiltBy=github-actions"
-          
+
           go build -ldflags="$LDFLAGS" -o "${BINARY_NAME}" ./cmd/glocate
-          
+
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 
       - name: Install Cosign
@@ -147,20 +147,20 @@ jobs:
         run: |
           # Create temporary private key file from secret
           echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
-          
+
           # Sign the binary using private key with password
           cosign sign-blob --yes \
             --key cosign.key \
             --output-signature ${{ env.BINARY_NAME }}.sig \
             ${{ env.BINARY_NAME }}
-          
+
           # Clean up private key file
           rm -f cosign.key
-          
+
           # Generate checksums
           sha256sum ${{ env.BINARY_NAME }} > ${{ env.BINARY_NAME }}.sha256
           sha512sum ${{ env.BINARY_NAME }} > ${{ env.BINARY_NAME }}.sha512
-          
+
           # Create verification instructions
           cat > ${{ env.BINARY_NAME }}.verify << EOF
           # Verify this binary with Cosign
@@ -171,7 +171,7 @@ jobs:
             --key cosign.pub \\
             --signature ${{ env.BINARY_NAME }}.sig \\
             ${{ env.BINARY_NAME }}
-          
+
           # Or verify checksum:
           sha256sum -c ${{ env.BINARY_NAME }}.sha256
           EOF
@@ -220,10 +220,10 @@ jobs:
         run: |
           # Create temporary private key file from secret
           echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
-          
+
           # Generate public key from private key
           cosign public-key --key cosign.key > cosign.pub
-          
+
           # Clean up private key file
           rm -f cosign.key
 
@@ -247,14 +247,14 @@ jobs:
         run: |
           echo "## Changes" > changelog.md
           echo "" >> changelog.md
-          
+
           # Get current tag and find previous tag properly
           CURRENT_TAG="${{ env.VERSION }}"
           echo "Current release tag: $CURRENT_TAG"
-          
+
           # Get all tags sorted by version and find the previous one
           LAST_TAG=$(git tag -l | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -2 | head -1 2>/dev/null || echo "")
-          
+
           if [ -n "$LAST_TAG" ] && [ "$LAST_TAG" != "$CURRENT_TAG" ]; then
             echo "### Commits since $LAST_TAG:" >> changelog.md
             echo "" >> changelog.md
@@ -264,17 +264,17 @@ jobs:
             echo "" >> changelog.md
             git log --pretty=format:"- %s (%h)" --no-merges -10 >> changelog.md
           fi
-          
+
           echo "" >> changelog.md
-          
+
           # Check if CHANGELOG.md contains information for current version
           VERSION_NO_V="${CURRENT_TAG#v}"
           if [ -f "CHANGELOG.md" ]; then
             echo "Checking CHANGELOG.md for version $VERSION_NO_V information..."
-            
+
             # Extract changelog section for current version
             CHANGELOG_SECTION=$(awk "/^## \[$VERSION_NO_V\]/ {found=1; next} /^## \[/ && found {exit} found {print}" CHANGELOG.md 2>/dev/null || echo "")
-            
+
             if [ -n "$CHANGELOG_SECTION" ]; then
               echo "Found changelog information for version $VERSION_NO_V"
               echo "" >> changelog.md
@@ -370,7 +370,7 @@ jobs:
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
-          
+
           # Generate lowercase repository owner for Docker tags
           REPO_OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "REPO_OWNER_LOWERCASE=$REPO_OWNER_LOWERCASE" >> $GITHUB_ENV
@@ -390,4 +390,4 @@ jobs:
             org.opencontainers.image.version=${{ env.VERSION_NO_V }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ) 
+            org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)

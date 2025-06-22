@@ -1,0 +1,21 @@
+# errcheck exclude file for go-locate
+# Standard library functions that commonly don't need error checking
+
+# Common file operations in tests that are generally safe to ignore
+(*os.File).Close
+os.RemoveAll
+
+# Printf family functions
+fmt.Printf
+fmt.Fprintf
+fmt.Sprintf
+
+# Standard output operations
+io.Copy(os.Stdout)
+io.Copy(os.Stderr)
+
+# Buffer operations that rarely fail
+(*bytes.Buffer).Write
+(*bytes.Buffer).WriteString
+(*strings.Builder).Write
+(*strings.Builder).WriteString
