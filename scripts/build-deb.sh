@@ -60,9 +60,9 @@ success() {
     echo -e "${GREEN}[SUCCESS]${NC} $*"
 }
 
-# Check dependencies
-check_dependencies() {
-    log "Checking dependencies..."
+# Auto-install dependencies
+auto_install_dependencies() {
+    log "Checking and installing DEB build dependencies..."
 
     local missing_deps=()
 
@@ -75,12 +75,46 @@ check_dependencies() {
     fi
 
     if [ ${#missing_deps[@]} -ne 0 ]; then
-        error "Missing dependencies: ${missing_deps[*]}"
-        error "Please install them with: sudo apt-get install ${missing_deps[*]}"
+        warn "Missing dependencies: ${missing_deps[*]}"
+
+        # Try to auto-install if in CI or if user confirms
+        if [ "${CI:-false}" = "true" ] || [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+            log "CI environment detected, attempting auto-installation..."
+            if command -v apt-get >/dev/null 2>&1; then
+                log "Installing dependencies with apt-get..."
+                sudo apt-get update -qq && sudo apt-get install -y "${missing_deps[@]}"
+            elif command -v dnf >/dev/null 2>&1; then
+                log "Installing dependencies with dnf..."
+                sudo dnf install -y dpkg-dev fakeroot
+            elif command -v yum >/dev/null 2>&1; then
+                log "Installing dependencies with yum..."
+                sudo yum install -y dpkg-dev fakeroot
+            else
+                error "No supported package manager found for auto-installation"
+                error "Please install manually: ${missing_deps[*]}"
+                return 1
+            fi
+        else
+            error "Missing dependencies: ${missing_deps[*]}"
+            error "Run the following to install them:"
+            error "  make install-deb-tools"
+            error "Or manually: sudo apt-get install ${missing_deps[*]}"
+            return 1
+        fi
+    fi
+
+    # Verify installation
+    if ! command -v fakeroot >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
+        error "Dependencies still missing after installation attempt"
         return 1
     fi
 
     success "All dependencies are available"
+}
+
+# Check dependencies (legacy function, calls auto_install_dependencies)
+check_dependencies() {
+    auto_install_dependencies
 }
 
 # Clean previous build

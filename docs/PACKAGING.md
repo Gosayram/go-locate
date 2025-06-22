@@ -259,43 +259,235 @@ lintian glocate_X.Y.Z_amd64.deb
 
 ## CI/CD Integration
 
+### Automated Tool Installation
+
+The packaging system now supports automatic installation of build tools:
+
+```bash
+# Auto-detect OS and install appropriate tools
+make install-rpm-tools    # Install RPM build tools
+make install-deb-tools    # Install DEB build tools
+make detect-os            # Show detected OS information
+
+# CI-optimized packaging (auto-installs tools in CI environments)
+make package-ci           # Build binary tarballs + source (CI-friendly)
+make package-ci-setup     # Setup CI environment with tools
+```
+
+### Supported Operating Systems
+
+#### RPM Building Support:
+- **Fedora/RHEL/CentOS/Rocky/AlmaLinux**: `dnf install` or `yum install`
+- **Ubuntu/Debian**: `apt-get install rpm` (cross-platform)
+- **openSUSE/SLES**: `zypper install`
+- **Arch/Manjaro**: `pacman -S rpm-tools`
+
+#### DEB Building Support:
+- **Ubuntu/Debian**: `apt-get install dpkg-dev fakeroot lintian` (native)
+- **Fedora/RHEL/CentOS**: `dnf install dpkg-dev fakeroot` (cross-platform)
+- **openSUSE/SLES**: `zypper install dpkg fakeroot`
+- **Arch/Manjaro**: `pacman -S dpkg fakeroot`
+
 ### GitHub Actions Example
 
+#### Complete Multi-Platform Packaging
+
 ```yaml
-name: Build Packages
+name: Build and Package
 
 on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    branches: [ main, develop ]
 
 jobs:
-  build-packages:
+  # Build binary tarballs (works on any OS)
+  build-binaries:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: 1.22
 
-      - name: Install packaging tools
+      - name: Build cross-platform binaries and tarballs
+        run: make package-ci
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binary-packages
+          path: packages/*.tar.gz
+
+  # Build RPM packages on RPM-based system
+  build-rpm:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Go
+        run: dnf install -y golang make git
+
+      - name: Build RPM packages
+        run: make package-rpm
+
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: rpm-packages
+          path: packages/*.rpm
+
+  # Build DEB packages on DEB-based system
+  build-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.22
+
+      - name: Build DEB packages
+        run: make package-deb
+
+      - name: Upload DEB artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: deb-packages
+          path: packages/*.deb
+
+  # Create release with all packages
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-binaries, build-rpm, build-deb]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            binary-packages/*
+            rpm-packages/*
+            deb-packages/*
+          generate_release_notes: true
+```
+
+#### CI-Optimized Workflow (Single Job)
+
+```yaml
+name: Quick Package Build
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.22
+
+      - name: Build packages with auto-tool installation
+        run: make package-ci
+
+      - name: Show package information
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rpm dpkg-dev fakeroot lintian
-
-      - name: Build cross-platform binaries
-        run: make build-cross
-
-      - name: Build packages
-        run: make package-all
+          echo "Built packages:"
+          ls -la packages/
 
       - name: Upload packages
         uses: actions/upload-artifact@v3
         with:
           name: packages
           path: packages/
+```
+
+### Docker-based Building
+
+For consistent cross-platform building:
+
+```yaml
+name: Docker Package Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-packages:
+    strategy:
+      matrix:
+        os:
+          - { name: "ubuntu", image: "ubuntu:22.04", pkg: "deb" }
+          - { name: "fedora", image: "fedora:latest", pkg: "rpm" }
+          - { name: "debian", image: "debian:bookworm", pkg: "deb" }
+          - { name: "centos", image: "quay.io/centos/centos:stream9", pkg: "rpm" }
+
+    runs-on: ubuntu-latest
+    container: ${{ matrix.os.image }}
+
+    steps:
+      - name: Install Git and basic tools
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            apt-get update && apt-get install -y git make curl
+          elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y git make curl golang
+          elif command -v yum >/dev/null 2>&1; then
+            yum install -y git make curl golang
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (if not installed)
+        if: matrix.os.name == 'ubuntu' || matrix.os.name == 'debian'
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.22
+
+      - name: Build package
+        run: make package-${{ matrix.os.pkg }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.os.name }}-packages
+          path: packages/
+```
+
+### Local Development
+
+For local development and testing:
+
+```bash
+# Check what OS you're on
+make detect-os
+
+# Install tools for your platform
+make install-rpm-tools   # If you want to build RPM
+make install-deb-tools   # If you want to build DEB
+
+# Build packages
+make package-binaries    # Always works (creates tarballs)
+make package-rpm         # Works on any OS with RPM tools
+make package-deb         # Works on any OS with DEB tools
+make package-all         # Builds everything
+
+# CI-style build (auto-installs tools)
+CI=true make package-ci  # Simulates CI environment
 ```
 
 ## Best Practices

@@ -161,6 +161,9 @@ help:
 	@echo "  package-tarball - Create source tarball for distribution"
 	@echo "  package-setup   - Setup packaging environment"
 	@echo "  package-clean   - Clean package build artifacts"
+	@echo "  install-rpm-tools - Install RPM build tools (auto-detects OS)"
+	@echo "  install-deb-tools - Install DEB build tools (auto-detects OS)"
+	@echo "  detect-os       - Detect operating system for package building"
 	@echo ""
 	@echo "  Cleanup:"
 	@echo "  ========"
@@ -186,6 +189,8 @@ help:
 	@echo "  ci-test         - Run CI tests"
 	@echo "  ci-build        - Run CI build"
 	@echo "  ci-release      - Complete CI release pipeline"
+	@echo "  package-ci      - Build packages for CI/CD (auto-installs tools)"
+	@echo "  package-ci-setup - Setup CI/CD packaging environment"
 	@echo "  matrix-test-local - Run matrix tests locally with multiple Go versions"
 	@echo "  matrix-info     - Show matrix testing configuration and features"
 	@echo "  test-multi-go   - Test Go version compatibility"
@@ -199,8 +204,11 @@ help:
 	@echo "  make example-config           - Create glocate.example.toml"
 	@echo "  make package                  - Build all packages (binary tarballs, RPM, DEB)"
 	@echo "  make package-binaries         - Create binary tarballs for distribution"
-	@echo "  make package-rpm              - Build only RPM package"
-	@echo "  make package-deb              - Build only DEB package"
+	@echo "  make package-ci               - Build packages for CI/CD (auto-installs tools)"
+	@echo "  make package-rpm              - Build only RPM package (auto-installs tools)"
+	@echo "  make package-deb              - Build only DEB package (auto-installs tools)"
+	@echo "  make install-rpm-tools        - Install RPM build tools for current OS"
+	@echo "  make install-deb-tools        - Install DEB build tools for current OS"
 	@echo ""
 	@echo "For CLI usage instructions, run: ./bin/glocate --help"
 
@@ -720,6 +728,127 @@ DEB_BUILD_DIR := $(PACKAGE_DIR)/deb
 TARBALL_NAME := $(BINARY_NAME)-$(VERSION).tar.gz
 SPEC_FILE := $(BINARY_NAME).spec
 
+# OS detection for package building
+OS_ID := $(shell \
+	if [ -f /etc/os-release ]; then \
+		. /etc/os-release && echo $$ID; \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		echo "macos"; \
+	elif [ "$$(uname)" = "FreeBSD" ]; then \
+		echo "freebsd"; \
+	else \
+		echo "unknown"; \
+	fi)
+OS_VERSION := $(shell \
+	if [ -f /etc/os-release ]; then \
+		. /etc/os-release && echo $$VERSION_ID; \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		sw_vers -productVersion 2>/dev/null || echo "unknown"; \
+	else \
+		echo "unknown"; \
+	fi)
+
+# Package building tools installation
+.PHONY: install-rpm-tools install-deb-tools detect-os
+
+detect-os:
+	@echo "Detecting operating system..."
+	@echo "OS ID: $(OS_ID)"
+	@echo "OS Version: $(OS_VERSION)"
+	@if [ "$(OS_ID)" = "unknown" ]; then \
+		echo "Warning: Cannot detect OS. Manual tool installation may be required."; \
+	fi
+
+install-rpm-tools: detect-os
+	@echo "Installing RPM build tools..."
+	@if command -v rpmbuild >/dev/null 2>&1 && command -v rpmdev-setuptree >/dev/null 2>&1; then \
+		echo "RPM tools already installed"; \
+	else \
+		echo "Installing RPM build tools for $(OS_ID)..."; \
+		case "$(OS_ID)" in \
+			fedora|rhel|centos|rocky|almalinux) \
+				if command -v dnf >/dev/null 2>&1; then \
+					sudo dnf install -y rpm-build rpmdevtools; \
+				elif command -v yum >/dev/null 2>&1; then \
+					sudo yum install -y rpm-build rpmdevtools; \
+				else \
+					echo "Error: No package manager found (dnf/yum)"; exit 1; \
+				fi \
+				;; \
+			ubuntu|debian) \
+				sudo apt-get update && sudo apt-get install -y rpm; \
+				echo "Warning: RPM tools installed on Debian/Ubuntu. Native DEB building is recommended."; \
+				;; \
+			opensuse*|sles) \
+				sudo zypper install -y rpm-build rpmdevtools; \
+				;; \
+			arch|manjaro) \
+				sudo pacman -S --noconfirm rpm-tools; \
+				;; \
+			macos) \
+				if command -v brew >/dev/null 2>&1; then \
+					brew install rpm; \
+				else \
+					echo "Error: Homebrew not found. Install Homebrew first: https://brew.sh"; \
+					echo "Then run: brew install rpm"; \
+					exit 1; \
+				fi; \
+				echo "Warning: RPM tools installed on macOS. Cross-platform building only."; \
+				;; \
+			*) \
+				echo "Error: Unsupported OS for RPM building: $(OS_ID)"; \
+				echo "Please install rpm-build and rpmdevtools manually"; \
+				exit 1; \
+				;; \
+		esac; \
+		echo "RPM tools installed successfully"; \
+	fi
+
+install-deb-tools: detect-os
+	@echo "Installing DEB build tools..."
+	@if command -v dpkg-deb >/dev/null 2>&1 && command -v fakeroot >/dev/null 2>&1; then \
+		echo "DEB tools already installed"; \
+	else \
+		echo "Installing DEB build tools for $(OS_ID)..."; \
+		case "$(OS_ID)" in \
+			ubuntu|debian) \
+				sudo apt-get update && sudo apt-get install -y dpkg-dev fakeroot lintian; \
+				;; \
+			fedora|rhel|centos|rocky|almalinux) \
+				if command -v dnf >/dev/null 2>&1; then \
+					sudo dnf install -y dpkg-dev fakeroot; \
+				elif command -v yum >/dev/null 2>&1; then \
+					sudo yum install -y dpkg-dev fakeroot; \
+				else \
+					echo "Error: No package manager found (dnf/yum)"; exit 1; \
+				fi; \
+				echo "Warning: DEB tools installed on RPM-based system. Native RPM building is recommended."; \
+				;; \
+			opensuse*|sles) \
+				sudo zypper install -y dpkg fakeroot; \
+				;; \
+			arch|manjaro) \
+				sudo pacman -S --noconfirm dpkg fakeroot; \
+				;; \
+			macos) \
+				if command -v brew >/dev/null 2>&1; then \
+					brew install dpkg fakeroot; \
+				else \
+					echo "Error: Homebrew not found. Install Homebrew first: https://brew.sh"; \
+					echo "Then run: brew install dpkg fakeroot"; \
+					exit 1; \
+				fi; \
+				echo "Warning: DEB tools installed on macOS. Cross-platform building only."; \
+				;; \
+			*) \
+				echo "Error: Unsupported OS for DEB building: $(OS_ID)"; \
+				echo "Please install dpkg-dev and fakeroot manually"; \
+				exit 1; \
+				;; \
+		esac; \
+		echo "DEB tools installed successfully"; \
+	fi
+
 # Package building
 .PHONY: package package-rpm package-deb package-tarball package-clean package-setup package-all package-binaries build-all
 
@@ -771,10 +900,8 @@ package-tarball: clean package-setup
 	@rm -rf $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src
 	@echo "Source tarball created: $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src.tar.gz"
 
-package-rpm: package-binaries
+package-rpm: package-binaries install-rpm-tools
 	@echo "Building RPM package..."
-	@command -v rpmbuild >/dev/null 2>&1 || { echo "Error: rpmbuild not found. Install rpm-build package."; exit 1; }
-	@command -v rpmdev-setuptree >/dev/null 2>&1 || { echo "Error: rpmdev-setuptree not found. Install rpmdevtools package."; exit 1; }
 	@echo "Setting up RPM build environment..."
 	@rpmdev-setuptree
 	@cp $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(RPM_BUILD_DIR)/SOURCES/
@@ -790,7 +917,7 @@ package-rpm: package-binaries
 	@echo "RPM package created successfully!"
 	@ls -la $(PACKAGE_DIR)/*.rpm
 
-package-deb: build
+package-deb: build install-deb-tools
 	@echo "Building DEB package using custom script..."
 	@chmod +x scripts/build-deb.sh
 	@VERSION=$(VERSION) COMMIT=$(COMMIT) scripts/build-deb.sh
@@ -802,6 +929,31 @@ package-clean:
 	@rm -rf $(RPM_BUILD_DIR)/BUILDROOT/$(BINARY_NAME)-*
 	@rm -f $(RPM_BUILD_DIR)/SOURCES/$(TARBALL_NAME)
 	@echo "Package build artifacts cleaned"
+
+# CI/CD specific package building targets
+.PHONY: package-ci package-ci-setup
+
+package-ci-setup:
+	@echo "Setting up CI/CD packaging environment..."
+	@echo "Detected OS: $(OS_ID) $(OS_VERSION)"
+	@if [ "$(CI)" = "true" ] || [ "$(GITHUB_ACTIONS)" = "true" ]; then \
+		echo "Running in CI environment"; \
+		echo "Installing all packaging tools..."; \
+		$(MAKE) install-rpm-tools || echo "RPM tools installation failed (non-critical in CI)"; \
+		$(MAKE) install-deb-tools || echo "DEB tools installation failed (non-critical in CI)"; \
+	else \
+		echo "Not in CI environment, skipping automatic tool installation"; \
+		echo "Run 'make install-rpm-tools' or 'make install-deb-tools' manually if needed"; \
+	fi
+
+package-ci: package-ci-setup package-binaries package-tarball
+	@echo "CI packaging completed!"
+	@echo "Available packages:"
+	@ls -la $(PACKAGE_DIR)/
+	@echo ""
+	@echo "For platform-specific packages, run:"
+	@echo "  make package-rpm  # On RPM-based systems"
+	@echo "  make package-deb  # On DEB-based systems"
 
 package: package-all
 
