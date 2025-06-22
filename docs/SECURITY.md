@@ -10,7 +10,7 @@ The project uses multiple security analysis tools to ensure code security:
 
 [gosec](https://github.com/securego/gosec) performs static security analysis of Go code by scanning the Go AST and SSA code representation. It detects common security issues like hardcoded credentials, insecure TLS configurations, and SQL injection vulnerabilities.
 
-### Vulnerability Detection with govulncheck  
+### Vulnerability Detection with govulncheck
 
 [govulncheck](https://golang.org/x/vuln/cmd/govulncheck) is the official Go vulnerability scanner that checks for known vulnerabilities in Go modules. It analyzes your codebase and dependencies to identify vulnerabilities that actually affect your code, reducing noise by only reporting issues in functions your code actually calls.
 
@@ -32,7 +32,7 @@ The project uses the official [anchore/sbom-action](https://github.com/anchore/s
 
 #### Static Security Analysis (gosec)
 - `make security-scan` - Run gosec security scanner with SARIF output
-- `make security-scan-json` - Run gosec security scanner with JSON output  
+- `make security-scan-json` - Run gosec security scanner with JSON output
 - `make security-scan-html` - Run gosec security scanner with HTML output
 - `make security-scan-ci` - Run gosec security scanner for CI (no-fail mode)
 
@@ -104,7 +104,7 @@ The following gosec rules are actively monitored:
 - **G402**: Insecure TLS connection settings
 - **G404**: Insecure random number sources
 
-#### Code Injection Prevention  
+#### Code Injection Prevention
 - **G201**: SQL query construction using format strings
 - **G202**: SQL query construction using string concatenation
 - **G204**: Command execution audit
@@ -145,7 +145,7 @@ randomValue := rand.Intn(100) // #nosec G404 -- Used for test data generation on
 **Static Security Analysis (gosec):**
 ```bash
 make security-scan          # SARIF output
-make security-scan-json     # JSON output  
+make security-scan-json     # JSON output
 make security-scan-html     # HTML output
 ```
 
@@ -174,12 +174,12 @@ make sbom-all               # All formats
 cat gosec-report.sarif
 cat gosec-report.json
 
-# View govulncheck results  
+# View govulncheck results
 cat vulncheck-report.json
 
 # View SBOM results
 cat sbom.syft.json          # Syft JSON format
-cat sbom.spdx.json          # SPDX JSON format  
+cat sbom.spdx.json          # SPDX JSON format
 cat sbom.cyclonedx.json     # CycloneDX JSON format
 ```
 
@@ -188,7 +188,7 @@ cat sbom.cyclonedx.json     # CycloneDX JSON format
 The project maintains continuous security monitoring through:
 
 1. **Automated Scanning**: Every code change triggers security analysis
-2. **Dependency Monitoring**: Regular checks for vulnerable dependencies  
+2. **Dependency Monitoring**: Regular checks for vulnerable dependencies
 3. **SBOM Generation**: Software Bill of Materials created for supply chain visibility
 4. **Security Advisories**: GitHub Security Advisory monitoring
 5. **SARIF Integration**: Results integrated with GitHub Security tab

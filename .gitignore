@@ -74,5 +74,16 @@ sbom.*.json
 glocate
 glocate.*
 
+# Package spec for RPM
+!glocate.spec
+
 # Benchmark files
 benchmark-report.md
+
+# Package files
+packages/*
+
+# Archive files
+**/**/*.tar.gz
+**/**/*.deb
+**/**/*.rpm

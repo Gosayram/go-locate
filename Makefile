@@ -151,6 +151,17 @@ help:
 	@echo "  bump-major      - Bump major version"
 	@echo "  release         - Build release version with all optimizations"
 	@echo ""
+	@echo "  Package Building:"
+	@echo "  ================="
+	@echo "  package         - Build all packages (RPM, DEB, and source tarball)"
+	@echo "  package-all     - Build all packages (alias for package)"
+	@echo "  package-binaries - Create binary tarballs for distribution"
+	@echo "  package-rpm     - Build RPM package for Red Hat/Fedora/CentOS systems"
+	@echo "  package-deb     - Build DEB package for Debian/Ubuntu systems"
+	@echo "  package-tarball - Create source tarball for distribution"
+	@echo "  package-setup   - Setup packaging environment"
+	@echo "  package-clean   - Clean package build artifacts"
+	@echo ""
 	@echo "  Cleanup:"
 	@echo "  ========"
 	@echo "  clean           - Clean build artifacts"
@@ -186,6 +197,10 @@ help:
 	@echo "  make build-cross              - Build for multiple platforms"
 	@echo "  make run ARGS=\"*.go\"          - Run with arguments"
 	@echo "  make example-config           - Create glocate.example.toml"
+	@echo "  make package                  - Build all packages (binary tarballs, RPM, DEB)"
+	@echo "  make package-binaries         - Create binary tarballs for distribution"
+	@echo "  make package-rpm              - Build only RPM package"
+	@echo "  make package-deb              - Build only DEB package"
 	@echo ""
 	@echo "For CLI usage instructions, run: ./bin/glocate --help"
 
@@ -250,6 +265,7 @@ build-debug: $(OUTPUT_DIR)
 build-cross: $(OUTPUT_DIR)
 	@echo "Building cross-platform binaries..."
 	GOOS=linux   GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
+	GOOS=linux   GOARCH=arm64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-arm64 ./$(CMD_DIR)
 	GOOS=darwin  GOARCH=arm64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
 	GOOS=darwin  GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
 	GOOS=windows GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
@@ -696,6 +712,98 @@ bump-major:
 	new=$$(echo $$current | awk -F. '{$$1=$$1+1; $$2=0; $$3=0; print $$1"."$$2"."$$3}'); \
 	echo $$new > .release-version; \
 	echo "Version bumped from $$current to $$new"
+
+# Package building constants
+PACKAGE_DIR := packages
+RPM_BUILD_DIR := $(HOME)/rpmbuild
+DEB_BUILD_DIR := $(PACKAGE_DIR)/deb
+TARBALL_NAME := $(BINARY_NAME)-$(VERSION).tar.gz
+SPEC_FILE := $(BINARY_NAME).spec
+
+# Package building
+.PHONY: package package-rpm package-deb package-tarball package-clean package-setup package-all package-binaries build-all
+
+build-all: build build-cross
+	@echo "All binaries built successfully"
+
+package-binaries: build-all package-setup
+	@echo "Creating binary tarballs..."
+
+	# Create AMD64 binary tarball
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64
+	@cp $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64/$(BINARY_NAME)
+	@cp README.md CHANGELOG.md LICENSE example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64/
+	@cp example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64/glocate.toml.example
+	@cd $(PACKAGE_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(BINARY_NAME)-$(VERSION)-linux-amd64/
+	@rm -rf $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64
+
+	# Create ARM64 binary tarball
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64
+	@cp $(OUTPUT_DIR)/$(BINARY_NAME)-linux-arm64 $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64/$(BINARY_NAME)
+	@cp README.md CHANGELOG.md LICENSE example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64/
+	@cp example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64/glocate.toml.example
+	@cd $(PACKAGE_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-linux-arm64.tar.gz $(BINARY_NAME)-$(VERSION)-linux-arm64/
+	@rm -rf $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64
+
+	@echo "Binary tarballs created successfully"
+
+package-all: package-binaries package-tarball package-rpm package-deb
+	@echo "All packages created successfully!"
+	@ls -la $(PACKAGE_DIR)/
+
+package-setup:
+	@echo "Setting up packaging environment..."
+	@mkdir -p $(PACKAGE_DIR)
+	@mkdir -p $(DEB_BUILD_DIR)
+	@echo "Packaging environment ready"
+
+package-tarball: clean package-setup
+	@echo "Creating source tarball..."
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src
+	@echo "Copying source files..."
+	@cp -r cmd internal docs scripts $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/ 2>/dev/null || true
+	@cp *.go *.md *.toml *.yml *.yaml *.mod *.sum *.sh Dockerfile Makefile LICENSE $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/ 2>/dev/null || true
+	@cp glocate.spec $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/ 2>/dev/null || true
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/testdata/validation
+	@echo "$(VERSION)" > $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/.release-version
+	@echo "Creating source tarball..."
+	@cd $(PACKAGE_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-src.tar.gz $(BINARY_NAME)-$(VERSION)-src/
+	@rm -rf $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src
+	@echo "Source tarball created: $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src.tar.gz"
+
+package-rpm: package-binaries
+	@echo "Building RPM package..."
+	@command -v rpmbuild >/dev/null 2>&1 || { echo "Error: rpmbuild not found. Install rpm-build package."; exit 1; }
+	@command -v rpmdev-setuptree >/dev/null 2>&1 || { echo "Error: rpmdev-setuptree not found. Install rpmdevtools package."; exit 1; }
+	@echo "Setting up RPM build environment..."
+	@rpmdev-setuptree
+	@cp $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(RPM_BUILD_DIR)/SOURCES/
+	@cp $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64.tar.gz $(RPM_BUILD_DIR)/SOURCES/
+	@echo "Building RPM with version $(VERSION)..."
+	@rpmbuild -ba $(SPEC_FILE) \
+		--define "version $(VERSION)" \
+		--define "commit $(COMMIT)" \
+		--define "commit_hash $(COMMIT)"
+	@echo "Copying RPM packages..."
+	@cp $(RPM_BUILD_DIR)/RPMS/*/*.rpm $(PACKAGE_DIR)/ 2>/dev/null || true
+	@cp $(RPM_BUILD_DIR)/SRPMS/*.rpm $(PACKAGE_DIR)/ 2>/dev/null || true
+	@echo "RPM package created successfully!"
+	@ls -la $(PACKAGE_DIR)/*.rpm
+
+package-deb: build
+	@echo "Building DEB package using custom script..."
+	@chmod +x scripts/build-deb.sh
+	@VERSION=$(VERSION) COMMIT=$(COMMIT) scripts/build-deb.sh
+
+package-clean:
+	@echo "Cleaning package build artifacts..."
+	@rm -rf $(PACKAGE_DIR)
+	@rm -rf $(RPM_BUILD_DIR)/BUILD/$(BINARY_NAME)-*
+	@rm -rf $(RPM_BUILD_DIR)/BUILDROOT/$(BINARY_NAME)-*
+	@rm -f $(RPM_BUILD_DIR)/SOURCES/$(TARBALL_NAME)
+	@echo "Package build artifacts cleaned"
+
+package: package-all
 
 # Docker support
 .PHONY: docker-build docker-run
