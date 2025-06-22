@@ -204,7 +204,7 @@ jobs:
       - name: Upload Coverage to Codecov
         # Only upload coverage for stable versions to avoid noise
         if: matrix.go-version == env.STABLE_GO_VERSION && matrix.experimental == false
-        uses: codecov/codecov-action@5b5b43bb2e7d61ab6e33b6ce6e67e7746d43b93b # v5.2.1
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
         with:
           file: ./coverage.out
           flags: ${{ runner.os }}-go${{ matrix.go-version }}

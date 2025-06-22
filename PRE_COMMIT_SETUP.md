@@ -1,10 +1,10 @@
 # Pre-commit Setup for go-locate
 
-Этот документ описывает настройку и использование pre-commit хуков для проекта go-locate.
+This document describes the setup and usage of pre-commit hooks for the go-locate project.
 
-## Установка pre-commit
+## Installing pre-commit
 
-### macOS (с Homebrew)
+### macOS (with Homebrew)
 ```bash
 brew install pre-commit
 ```
@@ -14,127 +14,167 @@ brew install pre-commit
 pip install pre-commit
 ```
 
-### Проверка установки
+### Verify installation
 ```bash
 pre-commit --version
 ```
 
-## Настройка в проекте
+## Project Setup
 
-### 1. Установка хуков
+### 1. Install hooks
 ```bash
-# Установить pre-commit хуки в git
+# Install pre-commit hooks in git
 pre-commit install
 
-# Установить хук для проверки commit messages
+# Install hook for commit message validation
 pre-commit install --hook-type commit-msg
 ```
 
-### 2. Первый запуск
+### 2. Initial run
 ```bash
-# Запустить хуки на всех файлах (рекомендуется при первой настройке)
+# Run hooks on all files (recommended for initial setup)
 pre-commit run --all-files
 ```
 
-## Настроенные хуки
+## Configured Hooks
 
-### Базовые проверки файлов
-- **trailing-whitespace**: Удаляет пробелы в конце строк
-- **end-of-file-fixer**: Обеспечивает наличие новой строки в конце файла
-- **check-yaml**: Проверяет синтаксис YAML файлов
-- **check-toml**: Проверяет синтаксис TOML файлов
-- **check-json**: Проверяет синтаксис JSON файлов
-- **check-added-large-files**: Предотвращает коммит больших файлов (>1MB)
-- **check-merge-conflict**: Проверяет наличие маркеров конфликта слияния
-- **mixed-line-ending**: Обеспечивает единообразные окончания строк (LF)
+### Basic file checks
+- **trailing-whitespace**: Removes trailing whitespace
+- **end-of-file-fixer**: Ensures files end with a newline
+- **check-yaml**: Validates YAML file syntax
+- **check-toml**: Validates TOML file syntax
+- **check-json**: Validates JSON file syntax
+- **check-added-large-files**: Prevents committing large files (>1MB)
+- **check-merge-conflict**: Checks for merge conflict markers
+- **mixed-line-ending**: Ensures consistent line endings (LF)
 
-### Go-специфичные хуки
-- **go-fmt-repo**: Форматирование кода с помощью gofmt
-- **go-imports-repo**: Управление импортами с помощью goimports
-- **go-mod-tidy-repo**: Очистка go.mod файлов
-- **go-vet-repo-mod**: Статический анализ с помощью go vet
-- **go-build-repo-mod**: Проверка компиляции
-- **go-test-repo-mod**: Запуск тестов с покрытием кода
-- **golangci-lint-repo-mod**: Запуск golangci-lint с существующей конфигурацией
+### Go-specific hooks
+- **go-fmt-repo**: Code formatting with gofmt
+- **go-imports-repo**: Import management with goimports
+- **go-mod-tidy-repo**: Clean up go.mod files
+- **go-vet-repo-mod**: Static analysis with go vet
+- **go-build-repo-mod**: Compilation check
+- **go-test-repo-mod**: Run tests with code coverage
+- **golangci-lint-repo-mod**: Run golangci-lint with existing configuration
 
-### Безопасность
-- **detect-secrets**: Обнаружение секретов в коде
+### Security
+- **detect-secrets**: Detect secrets in code
 
 ### Commit Messages
-- **conventional-pre-commit**: Проверка формата commit messages (conventional commits)
+- **custom-commit-msg**: Validate commit message format (supports both custom [TYPE] - description and conventional formats)
 
-## Использование
+## Usage
 
-### Автоматический запуск
-Pre-commit хуки запускаются автоматически при каждом `git commit`.
+### Automatic execution
+Pre-commit hooks run automatically on every `git commit`.
 
-### Ручной запуск
+### Manual execution
 ```bash
-# Запустить все хуки
+# Run all hooks
 pre-commit run --all-files
 
-# Запустить конкретный хук
+# Run specific hook
 pre-commit run go-fmt-repo
 
-# Запустить хуки только на измененных файлах
+# Run hooks only on changed files
 pre-commit run
 ```
 
-### Пропуск хуков
+### Skipping hooks
 ```bash
-# Пропустить все хуки для одного коммита
+# Skip all hooks for one commit
 git commit --no-verify -m "commit message"
 
-# Пропустить конкретные хуки
+# Skip specific hooks
 SKIP=go-test-repo-mod git commit -m "commit message"
 
-# Пропустить несколько хуков
+# Skip multiple hooks
 SKIP=go-test-repo-mod,golangci-lint-repo-mod git commit -m "commit message"
 ```
 
-## Формат Commit Messages
+## Commit Message Format
 
-Проект использует [Conventional Commits](https://www.conventionalcommits.org/) формат:
+The project supports two commit message formats:
+
+### Format 1: Custom Format (Recommended)
 
 ```
-<type>[optional scope]: <description>
+[TYPE] - description
 
 [optional body]
 
 [optional footer(s)]
 ```
 
-### Примеры типов:
-- `feat`: новая функциональность
-- `fix`: исправление бага
-- `docs`: изменения в документации
-- `style`: форматирование, отсутствующие точки с запятой и т.д.
-- `refactor`: рефакторинг кода
-- `test`: добавление тестов
-- `chore`: обновление задач сборки, конфигурации и т.д.
+**Allowed Types:**
+- `ADD` - Adding new features or files
+- `CI` - Continuous Integration changes
+- `FEATURE` - New feature implementation
+- `BUGFIX` - Bug fixes
+- `FIX` - General fixes
+- `INIT` - Initial project setup
+- `DOCS` - Documentation changes
+- `TEST` - Adding or modifying tests
+- `REFACTOR` - Code refactoring
+- `STYLE` - Code style changes
+- `CHORE` - Maintenance tasks
 
-### Примеры commit messages:
+**Examples:**
 ```bash
-git commit -m "feat: add search functionality"
-git commit -m "fix(config): resolve TOML parsing error"
-git commit -m "docs: update installation instructions"
-git commit -m "test: add unit tests for search module"
+git commit -m "[ADD] - new search functionality"
+git commit -m "[FIX] - resolve configuration parsing error"
+git commit -m "[CI] - update GitHub Actions workflow"
+git commit -m "[DOCS] - update installation instructions"
+git commit -m "[TEST] - add unit tests for search module"
 ```
 
-## Обновление хуков
+### Format 2: Conventional Commits
+
+```
+type: description
+type(scope): description
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Allowed Types:**
+- `feat` - New features
+- `fix` - Bug fixes
+- `docs` - Documentation changes
+- `style` - Code style changes (formatting, etc.)
+- `refactor` - Code refactoring
+- `test` - Adding or modifying tests
+- `chore` - Maintenance tasks
+- `ci` - CI/CD changes
+- `build` - Build system changes
+- `perf` - Performance improvements
+- `revert` - Reverting changes
+
+**Examples:**
+```bash
+git commit -m "feat: add new search functionality"
+git commit -m "fix: resolve configuration parsing error"
+git commit -m "chore: update version to 0.1.1"
+git commit -m "feat(search): add fuzzy matching support"
+git commit -m "fix(config): handle missing configuration file"
+```
+
+## Updating Hooks
 
 ```bash
-# Обновить хуки до последних версий
+# Update hooks to latest versions
 pre-commit autoupdate
 
-# Очистить кеш pre-commit (если возникают проблемы)
+# Clear pre-commit cache (if issues occur)
 pre-commit clean
 ```
 
-## Настройка IDE
+## IDE Configuration
 
 ### VS Code
-Добавьте в `.vscode/settings.json`:
+Add to `.vscode/settings.json`:
 ```json
 {
     "go.formatTool": "goimports",
@@ -146,39 +186,39 @@ pre-commit clean
 ```
 
 ### GoLand/IntelliJ IDEA
-1. Настройте goimports как форматтер по умолчанию
-2. Включите автоформатирование при сохранении
-3. Настройте golangci-lint как внешний инструмент
+1. Configure goimports as the default formatter
+2. Enable auto-formatting on save
+3. Configure golangci-lint as an external tool
 
-## Устранение неполадок
+## Troubleshooting
 
-### Проблема с установкой хуков
+### Hook installation issues
 ```bash
-# Переустановить хуки
+# Reinstall hooks
 pre-commit uninstall
 pre-commit install --install-hooks
 ```
 
-### Проблемы с golangci-lint
+### golangci-lint issues
 ```bash
-# Убедитесь, что golangci-lint установлен
+# Ensure golangci-lint is installed
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-# Проверьте конфигурацию
+# Check configuration
 golangci-lint config -h
 ```
 
-### Проблемы с Go модулями
+### Go module issues
 ```bash
-# Очистите модули и переустановите зависимости
+# Clean modules and reinstall dependencies
 go clean -modcache
 go mod download
 go mod tidy
 ```
 
-## Дополнительные ресурсы
+## Additional Resources
 
-- [Pre-commit документация](https://pre-commit.com/)
+- [Pre-commit documentation](https://pre-commit.com/)
 - [Conventional Commits](https://www.conventionalcommits.org/)
-- [GolangCI-Lint документация](https://golangci-lint.run/)
+- [GolangCI-Lint documentation](https://golangci-lint.run/)
 - [TekWizely/pre-commit-golang](https://github.com/TekWizely/pre-commit-golang)
