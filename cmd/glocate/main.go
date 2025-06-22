@@ -34,6 +34,7 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+// global flags
 var (
 	cfgFile     string
 	advanced    bool

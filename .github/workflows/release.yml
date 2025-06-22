@@ -347,11 +347,11 @@ jobs:
           # Create temporary private key file from secret
           echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
 
-          cd packages
+                    cd packages
 
           # Sign each package
-          for pkg in *.deb *.rpm 2>/dev/null; do
-            if [ -f "$pkg" ]; then
+          for pkg in *.deb *.rpm; do
+            if [ -f "$pkg" ] 2>/dev/null; then
               echo "Signing $pkg..."
               cosign sign-blob --yes \
                 --key ../cosign.key \
