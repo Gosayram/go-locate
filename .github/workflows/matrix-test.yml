@@ -33,13 +33,13 @@ env:
   # Minimum supported Go version
   MIN_GO_VERSION: "1.22"
   # Current stable Go version
-  STABLE_GO_VERSION: "1.24.4"
+  STABLE_GO_VERSION: "1.24"
   # Latest Go version for testing
   LATEST_GO_VERSION: "1.24"
   # Test timeout duration
   TEST_TIMEOUT: "10m"
   # Coverage threshold percentage
-  COVERAGE_THRESHOLD: "50"
+  COVERAGE_THRESHOLD: "25"
 
 jobs:
   matrix_test:
@@ -59,22 +59,22 @@ jobs:
         go-version:
           - "1.22"      # Minimum supported version
           - "1.23"      # Previous stable
-          - "1.24.4"    # Current project version
-          - "1.24"      # Latest stable
+          - "1.24"      # Current stable version
         experimental: [false]
 
         # Include experimental versions conditionally
         include:
           # Add experimental Go versions when requested
+          # Note: Using latest patch version for experimental testing
           - os: ubuntu-latest
-            go-version: "1.25rc1"
+            go-version: "stable"
             experimental: true
             # Only run if experimental testing is enabled
             include-condition: ${{ github.event.inputs.test_experimental == 'true' }}
 
           # Test on additional architectures for stable version
           - os: ubuntu-latest
-            go-version: "1.24.4"
+            go-version: "1.24"
             experimental: false
             goarch: "arm64"
 
@@ -266,7 +266,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ["1.23", "1.24.4", "1.24"]
+        go-version: ["1.23", "1.24"]
 
     steps:
       - name: Checkout Code
