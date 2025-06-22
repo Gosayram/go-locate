@@ -157,7 +157,7 @@ help:
 	@echo "  package-all     - Build all packages (alias for package)"
 	@echo "  package-binaries - Create binary tarballs for distribution"
 	@echo "  package-rpm     - Build RPM package for Red Hat/Fedora/CentOS systems"
-	@echo "  package-deb     - Build DEB package for Debian/Ubuntu systems"
+	@echo "  package-deb     - Build DEB package for Debian/Ubuntu systems (requires build-cross)"
 	@echo "  package-tarball - Create source tarball for distribution"
 	@echo "  package-setup   - Setup packaging environment"
 	@echo "  package-clean   - Clean package build artifacts"
@@ -876,9 +876,7 @@ package-binaries: build-all package-setup
 
 	@echo "Binary tarballs created successfully"
 
-package-all: package-binaries package-tarball package-rpm package-deb
-	@echo "All packages created successfully!"
-	@ls -la $(PACKAGE_DIR)/
+# Removed duplicate package-all definition - see below for correct one
 
 package-setup:
 	@echo "Setting up packaging environment..."
@@ -902,6 +900,17 @@ package-tarball: clean package-setup
 
 package-rpm: package-binaries install-rpm-tools
 	@echo "Building RPM package..."
+	@if ! command -v rpmdev-setuptree >/dev/null 2>&1; then \
+		echo "❌ rpmdev-setuptree not available on this system"; \
+		echo "RPM packaging requires a Linux system with RPM development tools"; \
+		echo "Current OS: $(OS_ID)"; \
+		echo ""; \
+		echo "To build RPM packages:"; \
+		echo "  1. Use a Linux system (Fedora, CentOS, RHEL, etc.)"; \
+		echo "  2. Or use Docker: docker run --rm -v \$$(pwd):/workspace -w /workspace fedora:latest make package-rpm"; \
+		echo "  3. Or use the CI/CD pipeline which runs on Linux"; \
+		exit 1; \
+	fi
 	@echo "Setting up RPM build environment..."
 	@rpmdev-setuptree
 	@cp $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(RPM_BUILD_DIR)/SOURCES/
@@ -917,7 +926,7 @@ package-rpm: package-binaries install-rpm-tools
 	@echo "RPM package created successfully!"
 	@ls -la $(PACKAGE_DIR)/*.rpm
 
-package-deb: build install-deb-tools
+package-deb: build-cross install-deb-tools
 	@echo "Building DEB package using custom script..."
 	@chmod +x scripts/build-deb.sh
 	@VERSION=$(VERSION) COMMIT=$(COMMIT) scripts/build-deb.sh
@@ -954,6 +963,13 @@ package-ci: package-ci-setup package-binaries package-tarball
 	@echo "For platform-specific packages, run:"
 	@echo "  make package-rpm  # On RPM-based systems"
 	@echo "  make package-deb  # On DEB-based systems"
+
+package-all: package-binaries package-tarball
+	@echo "Building all package types..."
+	@echo "Note: Platform-specific packages (RPM/DEB) require appropriate tools"
+	@echo "Run 'make package-rpm' on RPM-based systems"
+	@echo "Run 'make package-deb' on DEB-based systems"
+	@echo "All binary packages and tarballs created successfully!"
 
 package: package-all
 

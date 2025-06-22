@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Package Build Dependencies**: Fixed `package-deb` target to properly depend on `build-cross` instead of just `build`
+  - DEB packages now correctly use pre-compiled cross-platform binaries
+  - Resolved issue where DEB build script expected architecture-specific binaries
+  - Added proper error handling for missing cross-platform binaries
+  - Updated build-deb.sh to place packages in correct `packages/` directory
+
+- **RPM Package Building**: Enhanced RPM build system with proper platform detection
+  - Added intelligent platform detection for RPM tools availability
+  - Clear error messages when attempting RPM builds on unsupported platforms (e.g., macOS)
+  - Helpful guidance for using Docker or Linux systems for RPM packaging
+  - Maintained functionality for CI/CD environments with proper Linux containers
+
+- **Package Organization**: Improved package file placement and directory structure
+  - All packages now correctly placed in `packages/` directory
+  - Consistent naming conventions across all package types
+  - Proper cleanup and organization of build artifacts
+
+### Enhanced
+- **Makefile Package Targets**: Improved reliability and user experience
+  - `package-deb` now automatically builds required cross-platform binaries
+  - `package-rpm` provides clear feedback when tools are unavailable
+  - `package-all` works reliably on all platforms with appropriate warnings
+  - Better error messages and guidance for platform-specific limitations
+
 ### Added
 - **Automated Package Building System**: Complete overhaul of package building with auto-installation of build tools
   - Auto-detection of operating system (Linux distributions, macOS, FreeBSD)

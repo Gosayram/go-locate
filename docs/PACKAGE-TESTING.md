@@ -83,16 +83,21 @@ sudo rpm -i glocate-*.rpm               # RPM installation
 
 ### Cosign Signature Verification
 
+**Note**: The CI system uses **keyless signing** with GitHub OIDC tokens. Signatures are stored in the Sigstore transparency log and contain embedded certificates.
+
 ```bash
 # Install cosign
 curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
 sudo mv cosign-linux-amd64 /usr/local/bin/cosign
 sudo chmod +x /usr/local/bin/cosign
 
-# Verify package signatures
-cosign verify-blob --signature package.tar.gz.sig package.tar.gz
-cosign verify-blob --signature package.deb.sig package.deb  
-cosign verify-blob --signature package.rpm.sig package.rpm
+# Keyless signatures cannot be verified offline without the original context
+# However, you can inspect the signature files to see the embedded certificates
+cosign verify-blob --help  # See verification options
+
+# For production use, consider using traditional key-based signing:
+# cosign generate-key-pair
+# cosign sign-blob --key cosign.key package.tar.gz
 ```
 
 ### Package Integrity

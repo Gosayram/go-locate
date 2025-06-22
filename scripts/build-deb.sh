@@ -282,7 +282,10 @@ build_package() {
 
     cd "$PROJECT_ROOT"
 
-    local deb_filename="${PACKAGE_NAME}_${VERSION}_${DEB_ARCH}.deb"
+    # Ensure packages directory exists
+    mkdir -p packages
+
+    local deb_filename="packages/${PACKAGE_NAME}_${VERSION}_${DEB_ARCH}.deb"
 
     if command -v fakeroot >/dev/null 2>&1; then
         fakeroot dpkg-deb --build "$PACKAGE_DIR" "$deb_filename"
@@ -296,23 +299,24 @@ build_package() {
 verify_package() {
     log "Verifying package..."
 
-    local deb_file="${PACKAGE_NAME}_${VERSION}_${DEB_ARCH}.deb"
+    local deb_file="packages/${PACKAGE_NAME}_${VERSION}_${DEB_ARCH}.deb"
+    local full_path="$PROJECT_ROOT/$deb_file"
 
-    if [ -f "$PROJECT_ROOT/$deb_file" ]; then
+    if [ -f "$full_path" ]; then
         success "Package created successfully: $deb_file"
 
         # Show package info
         log "Package information:"
-        dpkg-deb --info "$PROJECT_ROOT/$deb_file"
+        dpkg-deb --info "$full_path"
 
         # Show package contents
         log "Package contents:"
-        dpkg-deb --contents "$PROJECT_ROOT/$deb_file"
+        dpkg-deb --contents "$full_path"
 
         # Run lintian if available
         if command -v lintian >/dev/null 2>&1; then
             log "Running lintian checks..."
-            lintian "$PROJECT_ROOT/$deb_file" || warn "Lintian found some issues (non-critical)"
+            lintian "$full_path" || warn "Lintian found some issues (non-critical)"
         else
             warn "lintian not available, skipping package validation"
         fi

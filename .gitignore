@@ -82,6 +82,7 @@ benchmark-report.md
 
 # Package files
 packages/*
+build-deb/*
 
 # Archive files
 **/**/*.tar.gz
