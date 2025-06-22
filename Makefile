@@ -50,6 +50,9 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE ?= $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 BUILT_BY ?= $(shell git remote get-url origin 2>/dev/null | sed -n 's/.*[:/]\([^/]*\)\/[^/]*\.git.*/\1/p' || git config user.name 2>/dev/null | tr ' ' '_' || echo "unknown")
 
+# Build flags for Go
+BUILD_FLAGS=-buildvcs=false
+
 # Linker flags for version information
 LDFLAGS=-ldflags "-s -w -X 'github.com/Gosayram/go-locate/internal/version.Version=$(VERSION)' \
 				  -X 'github.com/Gosayram/go-locate/internal/version.Commit=$(COMMIT)' \
@@ -260,23 +263,23 @@ install-tools:
 build: $(OUTPUT_DIR)
 	@echo "Building $(BINARY_NAME) with version $(VERSION)..."
 	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
-		$(LDFLAGS) \
+		$(BUILD_FLAGS) $(LDFLAGS) \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 
 build-debug: $(OUTPUT_DIR)
 	@echo "Building debug version..."
 	CGO_ENABLED=0 go build \
-		-gcflags="all=-N -l" \
+		$(BUILD_FLAGS) -gcflags="all=-N -l" \
 		$(LDFLAGS) \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME)-debug ./$(CMD_DIR)
 
 build-cross: $(OUTPUT_DIR)
 	@echo "Building cross-platform binaries..."
-	GOOS=linux   GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
-	GOOS=linux   GOARCH=arm64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-arm64 ./$(CMD_DIR)
-	GOOS=darwin  GOARCH=arm64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
-	GOOS=darwin  GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
-	GOOS=windows GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
+	GOOS=linux   GOARCH=amd64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
+	GOOS=linux   GOARCH=arm64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-arm64 ./$(CMD_DIR)
+	GOOS=darwin  GOARCH=arm64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
+	GOOS=darwin  GOARCH=amd64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
+	GOOS=windows GOARCH=amd64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
 	@echo "Cross-platform binaries are available in $(OUTPUT_DIR):"
 	@ls -1 $(OUTPUT_DIR)
 
@@ -648,7 +651,7 @@ release: test lint staticcheck
 	@echo "Building release version $(VERSION)..."
 	@mkdir -p $(OUTPUT_DIR)
 	CGO_ENABLED=0 go build \
-		$(LDFLAGS) \
+		$(BUILD_FLAGS) $(LDFLAGS) \
 		-ldflags="-s -w" \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 	@echo "Release build completed: $(OUTPUT_DIR)/$(BINARY_NAME)"
@@ -1072,7 +1075,7 @@ ci-test:
 
 ci-build:
 	@echo "Running CI build..."
-	CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+	CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 	@echo "CI build completed"
 
 ci-release: ci-lint ci-test ci-build test-integration-fast
