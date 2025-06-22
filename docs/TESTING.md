@@ -6,7 +6,7 @@ This document provides guidelines for writing and maintaining tests in the go-lo
 
 The project uses **[testify](https://github.com/stretchr/testify)** v1.10.0 as the primary testing framework, which provides:
 - Easy assertions with better error messages
-- Test setup and teardown utilities  
+- Test setup and teardown utilities
 - Structured test organization with sub-tests
 - Mocking capabilities (when needed)
 
@@ -164,7 +164,7 @@ go test -v -run TestFuzzyMatch ./internal/search/
 
 Tests run automatically in CI with:
 - Race detection enabled
-- Coverage reporting  
+- Coverage reporting
 - Parallel execution for performance
 
 ## Best Practices

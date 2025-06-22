@@ -165,6 +165,13 @@ make check-all
 
 # Cross-platform build
 make build-cross
+
+# Package building (following Go best practices)
+make package              # Build all packages (binary tarballs, RPM, DEB)
+make package-binaries     # Create binary tarballs for distribution
+make package-rpm          # Build only RPM package
+make package-deb          # Build only DEB package
+make package-tarball      # Create source distribution
 ```
 
 ### Project Structure
@@ -194,6 +201,46 @@ make benchmark-report
 # Run specific benchmarks
 go test -bench=BenchmarkFuzzyMatch ./internal/search/
 ```
+
+## Package Distribution
+
+### Distribution Packages
+
+go-locate follows modern Go packaging best practices using pre-compiled binaries:
+
+```bash
+# Build all packages (binary tarballs, RPM, DEB)
+make package
+
+# Individual package types
+make package-binaries     # Binary tarballs (recommended for distribution)
+make package-rpm          # RPM for Red Hat/CentOS/Fedora
+make package-deb          # DEB for Debian/Ubuntu
+make package-tarball      # Source distribution
+```
+
+#### Prerequisites
+
+**For RPM building**:
+```bash
+sudo dnf install rpm-build rpmdevtools
+```
+
+**For DEB building**:
+```bash
+sudo apt-get install dpkg-dev fakeroot
+```
+
+#### Modern Go Packaging Features
+
+- **Pre-compiled binaries**: Uses static binaries instead of building from source
+- **Multi-architecture support**: amd64 and arm64 with automatic detection
+- **Minimal dependencies**: Static binaries with no runtime dependencies
+- **Distribution compliance**: Follows Red Hat and Debian packaging guidelines
+- **Backward compatibility**: Creates `/usr/bin/locate -> glocate` symlink
+- **Proper metadata**: Provides, conflicts, and obsoletes declarations
+
+For detailed packaging documentation, see [docs/PACKAGING.md](docs/PACKAGING.md).
 
 ## Contributing
 
@@ -249,13 +296,13 @@ The project uses a multi-layered testing approach:
 
 #### Matrix Testing
 - **Go versions**: 1.22, 1.23, 1.24.4, 1.24
-- **Platforms**: Ubuntu, macOS, Windows  
+- **Platforms**: Ubuntu, macOS, Windows
 - **Architecture**: amd64, arm64 (selected combinations)
 - **Triggers**: Push, PR, scheduled daily, manual dispatch
 
 #### Quality Tools
 - **Linting**: golangci-lint with revive integration
-- **Static analysis**: staticcheck  
+- **Static analysis**: staticcheck
 - **Error checking**: errcheck
 - **Security scanning**: gosec + govulncheck
 - **Race detection**: Enabled for non-Windows platforms
@@ -275,7 +322,7 @@ make test
 # Matrix testing information
 make matrix-info
 
-# Check Go version compatibility  
+# Check Go version compatibility
 make test-go-versions
 
 # Multi-version testing (requires additional Go installations)

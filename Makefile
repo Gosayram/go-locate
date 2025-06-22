@@ -50,6 +50,9 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE ?= $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 BUILT_BY ?= $(shell git remote get-url origin 2>/dev/null | sed -n 's/.*[:/]\([^/]*\)\/[^/]*\.git.*/\1/p' || git config user.name 2>/dev/null | tr ' ' '_' || echo "unknown")
 
+# Build flags for Go
+BUILD_FLAGS=-buildvcs=false
+
 # Linker flags for version information
 LDFLAGS=-ldflags "-s -w -X 'github.com/Gosayram/go-locate/internal/version.Version=$(VERSION)' \
 				  -X 'github.com/Gosayram/go-locate/internal/version.Commit=$(COMMIT)' \
@@ -151,6 +154,20 @@ help:
 	@echo "  bump-major      - Bump major version"
 	@echo "  release         - Build release version with all optimizations"
 	@echo ""
+	@echo "  Package Building:"
+	@echo "  ================="
+	@echo "  package         - Build all packages (RPM, DEB, and source tarball)"
+	@echo "  package-all     - Build all packages (alias for package)"
+	@echo "  package-binaries - Create binary tarballs for distribution"
+	@echo "  package-rpm     - Build RPM package for Red Hat/Fedora/CentOS systems"
+	@echo "  package-deb     - Build DEB package for Debian/Ubuntu systems (requires build-cross)"
+	@echo "  package-tarball - Create source tarball for distribution"
+	@echo "  package-setup   - Setup packaging environment"
+	@echo "  package-clean   - Clean package build artifacts"
+	@echo "  install-rpm-tools - Install RPM build tools (auto-detects OS)"
+	@echo "  install-deb-tools - Install DEB build tools (auto-detects OS)"
+	@echo "  detect-os       - Detect operating system for package building"
+	@echo ""
 	@echo "  Cleanup:"
 	@echo "  ========"
 	@echo "  clean           - Clean build artifacts"
@@ -175,6 +192,8 @@ help:
 	@echo "  ci-test         - Run CI tests"
 	@echo "  ci-build        - Run CI build"
 	@echo "  ci-release      - Complete CI release pipeline"
+	@echo "  package-ci      - Build packages for CI/CD (auto-installs tools)"
+	@echo "  package-ci-setup - Setup CI/CD packaging environment"
 	@echo "  matrix-test-local - Run matrix tests locally with multiple Go versions"
 	@echo "  matrix-info     - Show matrix testing configuration and features"
 	@echo "  test-multi-go   - Test Go version compatibility"
@@ -186,6 +205,13 @@ help:
 	@echo "  make build-cross              - Build for multiple platforms"
 	@echo "  make run ARGS=\"*.go\"          - Run with arguments"
 	@echo "  make example-config           - Create glocate.example.toml"
+	@echo "  make package                  - Build all packages (binary tarballs, RPM, DEB)"
+	@echo "  make package-binaries         - Create binary tarballs for distribution"
+	@echo "  make package-ci               - Build packages for CI/CD (auto-installs tools)"
+	@echo "  make package-rpm              - Build only RPM package (auto-installs tools)"
+	@echo "  make package-deb              - Build only DEB package (auto-installs tools)"
+	@echo "  make install-rpm-tools        - Install RPM build tools for current OS"
+	@echo "  make install-deb-tools        - Install DEB build tools for current OS"
 	@echo ""
 	@echo "For CLI usage instructions, run: ./bin/glocate --help"
 
@@ -237,22 +263,23 @@ install-tools:
 build: $(OUTPUT_DIR)
 	@echo "Building $(BINARY_NAME) with version $(VERSION)..."
 	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build \
-		$(LDFLAGS) \
+		$(BUILD_FLAGS) $(LDFLAGS) \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 
 build-debug: $(OUTPUT_DIR)
 	@echo "Building debug version..."
 	CGO_ENABLED=0 go build \
-		-gcflags="all=-N -l" \
+		$(BUILD_FLAGS) -gcflags="all=-N -l" \
 		$(LDFLAGS) \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME)-debug ./$(CMD_DIR)
 
 build-cross: $(OUTPUT_DIR)
 	@echo "Building cross-platform binaries..."
-	GOOS=linux   GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
-	GOOS=darwin  GOARCH=arm64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
-	GOOS=darwin  GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
-	GOOS=windows GOARCH=amd64   CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
+	GOOS=linux   GOARCH=amd64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
+	GOOS=linux   GOARCH=arm64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-linux-arm64 ./$(CMD_DIR)
+	GOOS=darwin  GOARCH=arm64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
+	GOOS=darwin  GOARCH=amd64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-darwin-amd64 ./$(CMD_DIR)
+	GOOS=windows GOARCH=amd64   CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
 	@echo "Cross-platform binaries are available in $(OUTPUT_DIR):"
 	@ls -1 $(OUTPUT_DIR)
 
@@ -624,7 +651,7 @@ release: test lint staticcheck
 	@echo "Building release version $(VERSION)..."
 	@mkdir -p $(OUTPUT_DIR)
 	CGO_ENABLED=0 go build \
-		$(LDFLAGS) \
+		$(BUILD_FLAGS) $(LDFLAGS) \
 		-ldflags="-s -w" \
 		-o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 	@echo "Release build completed: $(OUTPUT_DIR)/$(BINARY_NAME)"
@@ -696,6 +723,258 @@ bump-major:
 	new=$$(echo $$current | awk -F. '{$$1=$$1+1; $$2=0; $$3=0; print $$1"."$$2"."$$3}'); \
 	echo $$new > .release-version; \
 	echo "Version bumped from $$current to $$new"
+
+# Package building constants
+PACKAGE_DIR := packages
+RPM_BUILD_DIR := $(HOME)/rpmbuild
+DEB_BUILD_DIR := $(PACKAGE_DIR)/deb
+TARBALL_NAME := $(BINARY_NAME)-$(VERSION).tar.gz
+SPEC_FILE := $(BINARY_NAME).spec
+
+# OS detection for package building
+OS_ID := $(shell \
+	if [ -f /etc/os-release ]; then \
+		. /etc/os-release && echo $$ID; \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		echo "macos"; \
+	elif [ "$$(uname)" = "FreeBSD" ]; then \
+		echo "freebsd"; \
+	else \
+		echo "unknown"; \
+	fi)
+OS_VERSION := $(shell \
+	if [ -f /etc/os-release ]; then \
+		. /etc/os-release && echo $$VERSION_ID; \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		sw_vers -productVersion 2>/dev/null || echo "unknown"; \
+	else \
+		echo "unknown"; \
+	fi)
+
+# Package building tools installation
+.PHONY: install-rpm-tools install-deb-tools detect-os
+
+detect-os:
+	@echo "Detecting operating system..."
+	@echo "OS ID: $(OS_ID)"
+	@echo "OS Version: $(OS_VERSION)"
+	@if [ "$(OS_ID)" = "unknown" ]; then \
+		echo "Warning: Cannot detect OS. Manual tool installation may be required."; \
+	fi
+
+install-rpm-tools: detect-os
+	@echo "Installing RPM build tools..."
+	@if command -v rpmbuild >/dev/null 2>&1 && command -v rpmdev-setuptree >/dev/null 2>&1; then \
+		echo "RPM tools already installed"; \
+	else \
+		echo "Installing RPM build tools for $(OS_ID)..."; \
+		case "$(OS_ID)" in \
+			fedora|rhel|centos|rocky|almalinux) \
+				if command -v dnf >/dev/null 2>&1; then \
+					sudo dnf install -y rpm-build rpmdevtools; \
+				elif command -v yum >/dev/null 2>&1; then \
+					sudo yum install -y rpm-build rpmdevtools; \
+				else \
+					echo "Error: No package manager found (dnf/yum)"; exit 1; \
+				fi \
+				;; \
+			ubuntu|debian) \
+				sudo apt-get update && sudo apt-get install -y rpm; \
+				echo "Warning: RPM tools installed on Debian/Ubuntu. Native DEB building is recommended."; \
+				;; \
+			opensuse*|sles) \
+				sudo zypper install -y rpm-build rpmdevtools; \
+				;; \
+			arch|manjaro) \
+				sudo pacman -S --noconfirm rpm-tools; \
+				;; \
+			macos) \
+				if command -v brew >/dev/null 2>&1; then \
+					brew install rpm; \
+				else \
+					echo "Error: Homebrew not found. Install Homebrew first: https://brew.sh"; \
+					echo "Then run: brew install rpm"; \
+					exit 1; \
+				fi; \
+				echo "Warning: RPM tools installed on macOS. Cross-platform building only."; \
+				;; \
+			*) \
+				echo "Error: Unsupported OS for RPM building: $(OS_ID)"; \
+				echo "Please install rpm-build and rpmdevtools manually"; \
+				exit 1; \
+				;; \
+		esac; \
+		echo "RPM tools installed successfully"; \
+	fi
+
+install-deb-tools: detect-os
+	@echo "Installing DEB build tools..."
+	@if command -v dpkg-deb >/dev/null 2>&1 && command -v fakeroot >/dev/null 2>&1; then \
+		echo "DEB tools already installed"; \
+	else \
+		echo "Installing DEB build tools for $(OS_ID)..."; \
+		case "$(OS_ID)" in \
+			ubuntu|debian) \
+				sudo apt-get update && sudo apt-get install -y dpkg-dev fakeroot lintian; \
+				;; \
+			fedora|rhel|centos|rocky|almalinux) \
+				if command -v dnf >/dev/null 2>&1; then \
+					sudo dnf install -y dpkg-dev fakeroot; \
+				elif command -v yum >/dev/null 2>&1; then \
+					sudo yum install -y dpkg-dev fakeroot; \
+				else \
+					echo "Error: No package manager found (dnf/yum)"; exit 1; \
+				fi; \
+				echo "Warning: DEB tools installed on RPM-based system. Native RPM building is recommended."; \
+				;; \
+			opensuse*|sles) \
+				sudo zypper install -y dpkg fakeroot; \
+				;; \
+			arch|manjaro) \
+				sudo pacman -S --noconfirm dpkg fakeroot; \
+				;; \
+			macos) \
+				if command -v brew >/dev/null 2>&1; then \
+					brew install dpkg fakeroot; \
+				else \
+					echo "Error: Homebrew not found. Install Homebrew first: https://brew.sh"; \
+					echo "Then run: brew install dpkg fakeroot"; \
+					exit 1; \
+				fi; \
+				echo "Warning: DEB tools installed on macOS. Cross-platform building only."; \
+				;; \
+			*) \
+				echo "Error: Unsupported OS for DEB building: $(OS_ID)"; \
+				echo "Please install dpkg-dev and fakeroot manually"; \
+				exit 1; \
+				;; \
+		esac; \
+		echo "DEB tools installed successfully"; \
+	fi
+
+# Package building
+.PHONY: package package-rpm package-deb package-tarball package-clean package-setup package-all package-binaries build-all
+
+build-all: build build-cross
+	@echo "All binaries built successfully"
+
+package-binaries: build-all package-setup
+	@echo "Creating binary tarballs..."
+
+	# Create AMD64 binary tarball
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64
+	@cp $(OUTPUT_DIR)/$(BINARY_NAME)-linux-amd64 $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64/$(BINARY_NAME)
+	@cp README.md CHANGELOG.md LICENSE example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64/
+	@cp example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64/glocate.toml.example
+	@cd $(PACKAGE_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(BINARY_NAME)-$(VERSION)-linux-amd64/
+	@rm -rf $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64
+
+	# Create ARM64 binary tarball
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64
+	@cp $(OUTPUT_DIR)/$(BINARY_NAME)-linux-arm64 $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64/$(BINARY_NAME)
+	@cp README.md CHANGELOG.md LICENSE example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64/
+	@cp example.glocate.toml $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64/glocate.toml.example
+	@cd $(PACKAGE_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-linux-arm64.tar.gz $(BINARY_NAME)-$(VERSION)-linux-arm64/
+	@rm -rf $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64
+
+	@echo "Binary tarballs created successfully"
+
+# Removed duplicate package-all definition - see below for correct one
+
+package-setup:
+	@echo "Setting up packaging environment..."
+	@mkdir -p $(PACKAGE_DIR)
+	@mkdir -p $(DEB_BUILD_DIR)
+	@echo "Packaging environment ready"
+
+package-tarball: clean package-setup
+	@echo "Creating source tarball..."
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src
+	@echo "Copying source files..."
+	@cp -r cmd internal docs scripts $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/ 2>/dev/null || true
+	@cp *.go *.md *.toml *.yml *.yaml *.mod *.sum *.sh Dockerfile Makefile LICENSE $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/ 2>/dev/null || true
+	@cp glocate.spec $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/ 2>/dev/null || true
+	@mkdir -p $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/testdata/validation
+	@echo "$(VERSION)" > $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src/.release-version
+	@echo "Creating source tarball..."
+	@cd $(PACKAGE_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-src.tar.gz $(BINARY_NAME)-$(VERSION)-src/
+	@rm -rf $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src
+	@echo "Source tarball created: $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-src.tar.gz"
+
+package-rpm: package-binaries install-rpm-tools
+	@echo "Building RPM package..."
+	@if ! command -v rpmdev-setuptree >/dev/null 2>&1; then \
+		echo "❌ rpmdev-setuptree not available on this system"; \
+		echo "RPM packaging requires a Linux system with RPM development tools"; \
+		echo "Current OS: $(OS_ID)"; \
+		echo ""; \
+		echo "To build RPM packages:"; \
+		echo "  1. Use a Linux system (Fedora, CentOS, RHEL, etc.)"; \
+		echo "  2. Or use Docker: docker run --rm -v \$$(pwd):/workspace -w /workspace fedora:latest make package-rpm"; \
+		echo "  3. Or use the CI/CD pipeline which runs on Linux"; \
+		exit 1; \
+	fi
+	@echo "Setting up RPM build environment..."
+	@rpmdev-setuptree
+	@cp $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.tar.gz $(RPM_BUILD_DIR)/SOURCES/
+	@cp $(PACKAGE_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64.tar.gz $(RPM_BUILD_DIR)/SOURCES/
+	@echo "Building RPM with version $(VERSION)..."
+	@rpmbuild -ba $(SPEC_FILE) \
+		--define "version $(VERSION)" \
+		--define "commit $(COMMIT)" \
+		--define "commit_hash $(COMMIT)"
+	@echo "Copying RPM packages..."
+	@cp $(RPM_BUILD_DIR)/RPMS/*/*.rpm $(PACKAGE_DIR)/ 2>/dev/null || true
+	@cp $(RPM_BUILD_DIR)/SRPMS/*.rpm $(PACKAGE_DIR)/ 2>/dev/null || true
+	@echo "RPM package created successfully!"
+	@ls -la $(PACKAGE_DIR)/*.rpm
+
+package-deb: build-cross install-deb-tools
+	@echo "Building DEB package using custom script..."
+	@chmod +x scripts/build-deb.sh
+	@VERSION=$(VERSION) COMMIT=$(COMMIT) scripts/build-deb.sh
+
+package-clean:
+	@echo "Cleaning package build artifacts..."
+	@rm -rf $(PACKAGE_DIR)
+	@rm -rf $(RPM_BUILD_DIR)/BUILD/$(BINARY_NAME)-*
+	@rm -rf $(RPM_BUILD_DIR)/BUILDROOT/$(BINARY_NAME)-*
+	@rm -f $(RPM_BUILD_DIR)/SOURCES/$(TARBALL_NAME)
+	@echo "Package build artifacts cleaned"
+
+# CI/CD specific package building targets
+.PHONY: package-ci package-ci-setup
+
+package-ci-setup:
+	@echo "Setting up CI/CD packaging environment..."
+	@echo "Detected OS: $(OS_ID) $(OS_VERSION)"
+	@if [ "$(CI)" = "true" ] || [ "$(GITHUB_ACTIONS)" = "true" ]; then \
+		echo "Running in CI environment"; \
+		echo "Installing all packaging tools..."; \
+		$(MAKE) install-rpm-tools || echo "RPM tools installation failed (non-critical in CI)"; \
+		$(MAKE) install-deb-tools || echo "DEB tools installation failed (non-critical in CI)"; \
+	else \
+		echo "Not in CI environment, skipping automatic tool installation"; \
+		echo "Run 'make install-rpm-tools' or 'make install-deb-tools' manually if needed"; \
+	fi
+
+package-ci: package-ci-setup package-binaries package-tarball
+	@echo "CI packaging completed!"
+	@echo "Available packages:"
+	@ls -la $(PACKAGE_DIR)/
+	@echo ""
+	@echo "For platform-specific packages, run:"
+	@echo "  make package-rpm  # On RPM-based systems"
+	@echo "  make package-deb  # On DEB-based systems"
+
+package-all: package-binaries package-tarball
+	@echo "Building all package types..."
+	@echo "Note: Platform-specific packages (RPM/DEB) require appropriate tools"
+	@echo "Run 'make package-rpm' on RPM-based systems"
+	@echo "Run 'make package-deb' on DEB-based systems"
+	@echo "All binary packages and tarballs created successfully!"
+
+package: package-all
 
 # Docker support
 .PHONY: docker-build docker-run
@@ -796,7 +1075,7 @@ ci-test:
 
 ci-build:
 	@echo "Running CI build..."
-	CGO_ENABLED=0 go build $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
+	CGO_ENABLED=0 go build $(BUILD_FLAGS) $(LDFLAGS) -o $(OUTPUT_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 	@echo "CI build completed"
 
 ci-release: ci-lint ci-test ci-build test-integration-fast

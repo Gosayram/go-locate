@@ -5,6 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-01-22
+
+### Added
+- **Release Automation**: Integrated RPM and DEB package building into GitHub release workflow
+  - Automated package creation for every release tag
+  - Multi-architecture support (amd64/arm64) for Linux packages
+  - Cosign signing for all packages with checksums
+  - Professional release notes with installation instructions for packages
+  - Seamless integration with existing binary and Docker releases
+
+### Fixed
+- **Package Build Dependencies**: Fixed `package-deb` target to properly depend on `build-cross` instead of just `build`
+  - DEB packages now correctly use pre-compiled cross-platform binaries
+  - Resolved issue where DEB build script expected architecture-specific binaries
+  - Added proper error handling for missing cross-platform binaries
+  - Updated build-deb.sh to place packages in correct `packages/` directory
+
+- **RPM Package Building**: Enhanced RPM build system with proper platform detection
+  - Added intelligent platform detection for RPM tools availability
+  - Clear error messages when attempting RPM builds on unsupported platforms (e.g., macOS)
+  - Helpful guidance for using Docker or Linux systems for RPM packaging
+  - Maintained functionality for CI/CD environments with proper Linux containers
+
+- **Package Organization**: Improved package file placement and directory structure
+  - All packages now correctly placed in `packages/` directory
+  - Consistent naming conventions across all package types
+  - Proper cleanup and organization of build artifacts
+
+### Enhanced
+- **Makefile Package Targets**: Improved reliability and user experience
+  - `package-deb` now automatically builds required cross-platform binaries
+  - `package-rpm` provides clear feedback when tools are unavailable
+  - `package-all` works reliably on all platforms with appropriate warnings
+  - Better error messages and guidance for platform-specific limitations
+
+### Added
+- **Automated Package Building System**: Complete overhaul of package building with auto-installation of build tools
+  - Auto-detection of operating system (Linux distributions, macOS, FreeBSD)
+  - Automatic installation of RPM build tools (`rpm-build`, `rpmdevtools`) on supported systems
+  - Automatic installation of DEB build tools (`dpkg-dev`, `fakeroot`, `lintian`) on supported systems
+  - Support for cross-platform package building (RPM on DEB systems, DEB on RPM systems)
+  - CI/CD optimized package building with `make package-ci` command
+  - Comprehensive package validation and testing
+  - Cosign integration for package signing and verification
+  - Multi-architecture support (AMD64, ARM64) for all package types
+
+- **Enhanced CI/CD Integration**:
+  - Professional GitHub Actions workflow with pinned action versions
+  - Security hardening with step-security/harden-runner
+  - Automatic package testing and validation
+  - Cosign keyless signing for all packages
+  - Comprehensive package reports with checksums and verification
+  - Support for manual workflow triggers with configurable options
+
+- **New Makefile Targets**:
+  - `detect-os`: Detect operating system for package building
+  - `install-rpm-tools`: Install RPM build tools with OS auto-detection
+  - `install-deb-tools`: Install DEB build tools with OS auto-detection
+  - `package-ci`: CI-optimized package building (auto-installs tools in CI)
+  - `package-ci-setup`: Setup CI/CD packaging environment
+
+- **Supported Operating Systems**:
+  - **Ubuntu/Debian**: Native DEB building, cross-platform RPM support
+  - **Fedora/RHEL/CentOS/Rocky/AlmaLinux**: Native RPM building, cross-platform DEB support
+  - **openSUSE/SLES**: Full RPM and DEB support via zypper
+  - **Arch Linux/Manjaro**: Full RPM and DEB support via pacman
+  - **macOS**: Development support via Homebrew (cross-platform only)
+
+### Enhanced
+- **Package Building Documentation**:
+  - New [Package Testing Guide](docs/PACKAGE-TESTING.md) with comprehensive testing procedures
+  - Updated [Packaging Quick Start](docs/PACKAGING-QUICKSTART.md) with modern examples
+  - Enhanced [Packaging Guide](docs/PACKAGING.md) with CI/CD integration examples
+  - Professional GitHub Actions examples with security best practices
+
+- **DEB Build Script**: Enhanced with automatic dependency installation and better error handling
+- **Package Validation**: Comprehensive testing of package contents, metadata, and signatures
+- **Security**: All packages signed with Cosign for verification and supply chain security
+
+### Technical Details
+- **Package Formats**: Binary tarballs (`.tar.gz`), DEB packages (`.deb`), RPM packages (`.rpm`)
+- **Architectures**: AMD64 (x86_64) and ARM64 (aarch64) support
+- **Signing**: Cosign keyless signing with GitHub OIDC for all package types
+- **Validation**: Automated package structure, metadata, and signature verification
+- **Performance**: Optimized build times with Go module caching and parallel builds
+
 ## [0.1.1] - 2025-01-18
 
 ### Added
