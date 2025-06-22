@@ -13,6 +13,7 @@ import (
 	"github.com/Gosayram/go-locate/internal/version"
 )
 
+// rootCmd is the root command for glocate
 var rootCmd = &cobra.Command{
 	Use:   "glocate [pattern]",
 	Short: "Modern file search tool",
@@ -23,6 +24,7 @@ It provides real-time file system searching without relying on outdated database
 	RunE:    runSearch,
 }
 
+// versionCmd is the command to show the version information
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show version information",
