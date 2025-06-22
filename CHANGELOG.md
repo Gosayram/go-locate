@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.3] - 2025-01-22
+
+### Added
+- **Release Automation**: Integrated RPM and DEB package building into GitHub release workflow
+  - Automated package creation for every release tag
+  - Multi-architecture support (amd64/arm64) for Linux packages
+  - Cosign signing for all packages with checksums
+  - Professional release notes with installation instructions for packages
+  - Seamless integration with existing binary and Docker releases
 
 ### Fixed
 - **Package Build Dependencies**: Fixed `package-deb` target to properly depend on `build-cross` instead of just `build`

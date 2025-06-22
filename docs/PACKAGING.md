@@ -549,3 +549,55 @@ For packaging-related issues:
 4. Review the build logs for specific error messages
 5. Check architecture compatibility
 6. Open an issue with your system information and error details
+
+# Package Distribution
+
+This document describes how to build and distribute packages for the glocate project.
+
+## Automated Release Packaging
+
+**Starting from version 0.1.3, all packages are automatically built and published with every GitHub release.**
+
+### Release Process
+
+When a new tag is pushed (e.g., `v0.1.3`), the GitHub Actions release workflow automatically:
+
+1. **Builds cross-platform binaries** for Linux, macOS, and Windows
+2. **Creates Linux packages**:
+   - DEB packages for Debian/Ubuntu systems (amd64/arm64)
+   - RPM packages for Red Hat/Fedora/CentOS systems (x86_64/aarch64)
+3. **Signs all packages** with Cosign using private key
+4. **Generates checksums** (SHA256/SHA512) for all packages
+5. **Creates GitHub release** with comprehensive installation instructions
+6. **Publishes Docker images** to GitHub Container Registry
+
+### Package Availability
+
+All packages are available on the [Releases page](https://github.com/Gosayram/go-locate/releases):
+
+- **Binary tarballs**: `glocate-X.Y.Z-OS-ARCH.tar.gz`
+- **DEB packages**: `glocate_X.Y.Z_ARCH.deb`
+- **RPM packages**: `glocate-X.Y.Z-1.ARCH.rpm`
+- **Signatures**: `*.sig` files for Cosign verification
+- **Checksums**: `*.sha256` and `*.sha512` files
+
+### Manual Release Creation
+
+To create a release manually:
+
+```bash
+# Create and push a new tag
+git tag v0.1.3
+git push origin v0.1.3
+
+# Or use GitHub CLI
+gh release create v0.1.3 --generate-notes
+```
+
+The release workflow will automatically trigger and build all packages.
+
+## Manual Package Building
+
+For development and testing purposes, you can still build packages manually:
+
+### Prerequisites

@@ -188,9 +188,202 @@ jobs:
             ${{ env.BINARY_NAME }}.verify
           retention-days: 1
 
+  build_docker:
+    name: Build and Push Docker Image
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    if: success() # Only run if tests pass, but don't block release on Docker failure
+    permissions:
+      contents: read      # Required to checkout code
+      packages: write     # Required to push Docker images to GHCR
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        with:
+          disable-sudo: true
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
+
+          # Generate lowercase repository owner for Docker tags
+          REPO_OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "REPO_OWNER_LOWERCASE=$REPO_OWNER_LOWERCASE" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/glocate:${{ env.VERSION }}
+            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/glocate:latest
+          labels: |
+            org.opencontainers.image.title=glocate
+            org.opencontainers.image.description="Fast, reliable file search tool"
+            org.opencontainers.image.version=${{ env.VERSION_NO_V }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  build_packages:
+    name: Build Linux Packages
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read      # Required to checkout code
+      id-token: write     # Required for Cosign keyless signing
+      actions: read       # Required to upload artifacts
+    strategy:
+      matrix:
+        include:
+          - name: DEB
+            container: null
+          - name: RPM
+            container: fedora:latest
+    container: ${{ matrix.container }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        with:
+          disable-sudo: false  # Required for package tool installation
+          egress-policy: audit
+
+      - name: Install Git and Dependencies (RPM only)
+        if: matrix.name == 'RPM'
+        run: |
+          dnf install -y git make golang rpm-build rpmdevtools tar gzip
+
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Get Go Version
+        run: |
+          GOVERSION=$({ [ -f .go-version ] && cat .go-version; })
+          echo "GOVERSION=$GOVERSION" >> $GITHUB_ENV
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ env.GOVERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.name }}-${{ env.GOVERSION }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.name }}-${{ env.GOVERSION }}-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
+
+      - name: Detect OS for Package Building
+        run: make detect-os
+
+      - name: Install Package Build Tools
+        run: |
+          if [ "${{ matrix.name }}" = "DEB" ]; then
+            make install-deb-tools
+          elif [ "${{ matrix.name }}" = "RPM" ]; then
+            make install-rpm-tools
+          fi
+
+      - name: Build Packages
+        env:
+          VERSION: ${{ env.VERSION_NO_V }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          if [ "${{ matrix.name }}" = "DEB" ]; then
+            make package-deb
+          elif [ "${{ matrix.name }}" = "RPM" ]; then
+            make package-rpm
+          fi
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
+        with:
+          cosign-release: 'v2.4.3'
+
+      - name: Sign Packages with Cosign
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          # Create temporary private key file from secret
+          echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
+
+          cd packages
+
+          # Sign each package
+          for pkg in *.deb *.rpm 2>/dev/null; do
+            if [ -f "$pkg" ]; then
+              echo "Signing $pkg..."
+              cosign sign-blob --yes \
+                --key ../cosign.key \
+                --output-signature "${pkg}.sig" \
+                "$pkg"
+
+              # Generate checksums
+              sha256sum "$pkg" > "${pkg}.sha256"
+              sha512sum "$pkg" > "${pkg}.sha512"
+
+              echo "✅ Signed and checksummed $pkg"
+            fi
+          done
+
+          # Clean up private key file
+          rm -f ../cosign.key
+
+      - name: Upload Package Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-packages-${{ matrix.name }}
+          path: |
+            packages/*.deb
+            packages/*.rpm
+            packages/*.sig
+            packages/*.sha256
+            packages/*.sha512
+          retention-days: 1
+
   create_release:
     name: Create Release
-    needs: build_binaries
+    needs: [build_binaries, build_packages]
     runs-on: ubuntu-latest
     permissions:
       # NOTE: contents:write is required for release creation functionality
@@ -288,9 +481,27 @@ jobs:
           fi
           echo "## Installation" >> changelog.md
           echo "" >> changelog.md
-          echo "Download the appropriate binary for your platform from the assets below." >> changelog.md
+          echo "Multiple installation options are available:" >> changelog.md
           echo "" >> changelog.md
-          echo "### Linux/macOS:" >> changelog.md
+          echo "### Package Managers (Recommended)" >> changelog.md
+          echo "" >> changelog.md
+          echo "#### Debian/Ubuntu (.deb):" >> changelog.md
+          echo '```bash' >> changelog.md
+          echo "# Download and install DEB package" >> changelog.md
+          echo "wget https://github.com/Gosayram/go-locate/releases/download/${{ env.VERSION }}/glocate_*_amd64.deb" >> changelog.md
+          echo "sudo dpkg -i glocate_*_amd64.deb" >> changelog.md
+          echo '```' >> changelog.md
+          echo "" >> changelog.md
+          echo "#### Red Hat/Fedora/CentOS (.rpm):" >> changelog.md
+          echo '```bash' >> changelog.md
+          echo "# Download and install RPM package" >> changelog.md
+          echo "wget https://github.com/Gosayram/go-locate/releases/download/${{ env.VERSION }}/glocate-*-1.x86_64.rpm" >> changelog.md
+          echo "sudo rpm -i glocate-*-1.x86_64.rpm" >> changelog.md
+          echo '```' >> changelog.md
+          echo "" >> changelog.md
+          echo "### Manual Binary Installation" >> changelog.md
+          echo "" >> changelog.md
+          echo "#### Linux/macOS:" >> changelog.md
           echo '```bash' >> changelog.md
           echo "# Download binary" >> changelog.md
           echo "curl -L -o glocate https://github.com/Gosayram/go-locate/releases/download/${{ env.VERSION }}/glocate-*-linux-amd64" >> changelog.md
@@ -300,7 +511,7 @@ jobs:
           echo "sudo mv glocate /usr/local/bin/" >> changelog.md
           echo '```' >> changelog.md
           echo "" >> changelog.md
-          echo "### Windows:" >> changelog.md
+          echo "#### Windows:" >> changelog.md
           echo "Download the .exe file and add it to your PATH." >> changelog.md
           echo "" >> changelog.md
           echo "### Verification:" >> changelog.md
@@ -329,65 +540,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-
-  build_docker:
-    name: Build and Push Docker Image
-    needs: build_and_test
-    runs-on: ubuntu-latest
-    if: success() # Only run if tests pass, but don't block release on Docker failure
-    permissions:
-      contents: read      # Required to checkout code
-      packages: write     # Required to push Docker images to GHCR
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
-        with:
-          disable-sudo: true
-          egress-policy: audit
-
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get version
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ github.event.inputs.tag }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/}"
-          fi
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
-
-          # Generate lowercase repository owner for Docker tags
-          REPO_OWNER_LOWERCASE=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "REPO_OWNER_LOWERCASE=$REPO_OWNER_LOWERCASE" >> $GITHUB_ENV
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/glocate:${{ env.VERSION }}
-            ghcr.io/${{ env.REPO_OWNER_LOWERCASE }}/glocate:latest
-          labels: |
-            org.opencontainers.image.title=glocate
-            org.opencontainers.image.description="Fast, reliable file search tool"
-            org.opencontainers.image.version=${{ env.VERSION_NO_V }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
