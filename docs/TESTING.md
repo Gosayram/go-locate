@@ -19,7 +19,7 @@ package search
 
 import (
     "testing"
-    
+
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/require"
 )
@@ -28,10 +28,10 @@ func TestFunctionName(t *testing.T) {
     // Setup
     input := "test input"
     expected := "expected output"
-    
+
     // Execute
     result := FunctionToTest(input)
-    
+
     // Assert
     assert.Equal(t, expected, result, "Function should return expected output")
 }
@@ -97,7 +97,7 @@ func TestFileOperation(t *testing.T) {
     // Create temporary directory
     tempDir, err := os.MkdirTemp("", "test_prefix")
     require.NoError(t, err, "Failed to create temp dir")
-    
+
     // Clean up after test
     defer func() {
         if err := os.RemoveAll(tempDir); err != nil {
@@ -247,4 +247,4 @@ When adding new tests:
 For questions or examples, refer to existing tests in:
 - `internal/search/search_test.go` - Core functionality tests
 - `internal/version/version_test.go` - Build information tests
-- `internal/search/search_bench_test.go` - Performance benchmarks 
+- `internal/search/search_bench_test.go` - Performance benchmarks

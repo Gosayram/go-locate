@@ -36,7 +36,7 @@ Matrix testing runs the complete test suite across different combinations of:
 ```
 Go Versions × Operating Systems:
 ├── Go 1.22  × [Ubuntu, macOS]           (2 combinations)
-├── Go 1.23  × [Ubuntu, macOS, Windows]  (3 combinations) 
+├── Go 1.23  × [Ubuntu, macOS, Windows]  (3 combinations)
 ├── Go 1.24.4× [Ubuntu, macOS, Windows]  (3 combinations)
 └── Go 1.24  × [Ubuntu, macOS, Windows]  (3 combinations)
 Plus Go 1.24.4 × Ubuntu × ARM64          (1 combination)
@@ -234,4 +234,4 @@ For matrix testing issues:
 1. **Check workflow logs**: GitHub Actions provides detailed output
 2. **Review documentation**: This guide and inline comments
 3. **Local reproduction**: Use `make matrix-test-local`
-4. **Issue reporting**: Include matrix job URLs and logs 
+4. **Issue reporting**: Include matrix job URLs and logs

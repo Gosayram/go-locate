@@ -5,7 +5,7 @@
 # Directories to exclude from search
 exclude_dirs = [
     "/proc",
-    "/sys", 
+    "/sys",
     "/dev",
     "/tmp",
     "node_modules",
@@ -40,4 +40,4 @@ format = "path"
 color = true
 
 # Maximum number of results to display
-max_results = 1000 
+max_results = 1000

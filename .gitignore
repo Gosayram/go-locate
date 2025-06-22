@@ -11,6 +11,9 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# Ignore coverage files
+coverage.*
+
 # Dependency directories (remove the comment below to include it)
 vendor/
 
@@ -52,7 +55,7 @@ debug
 debug.test
 
 # Log files
-*.log 
+*.log
 
 # Security scan reports
 gosec-report.*
@@ -61,6 +64,15 @@ gosec-results.*
 # Vulnerability scan reports
 vulncheck-report.*
 
+# SBOM reports
+sbom.*.json
+*.sbom
+*.spdx
+*.cyclonedx
+
 # Binary
 glocate
 glocate.*
+
+# Benchmark files
+benchmark-report.md

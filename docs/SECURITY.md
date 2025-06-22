@@ -22,6 +22,12 @@ The project uses multiple security analysis tools to ensure code security:
 
 [revive](https://github.com/mgechev/revive) is a fast, configurable, and extensible linter for Go that enforces coding standards and best practices. It's integrated into our golangci-lint configuration and provides rules for naming conventions, code style, error handling patterns, and more. This helps maintain consistent, readable, and maintainable code across the project.
 
+### Software Bill of Materials (SBOM) with Syft
+
+[Syft](https://github.com/anchore/syft) is a powerful CLI tool and Go library for generating Software Bill of Materials (SBOM) from container images and filesystems. It provides detailed visibility into packages and dependencies, helping manage vulnerabilities, license compliance, and software supply chain security. Syft supports multiple SBOM formats including SPDX, CycloneDX, and its own native format.
+
+The project uses the official [anchore/sbom-action](https://github.com/anchore/sbom-action) GitHub Action for automated SBOM generation in CI/CD pipelines, which provides seamless integration with GitHub workflows and automatic release asset uploads. The SPDX format SBOM is also automatically submitted to GitHub's Dependency Graph for enhanced dependency tracking and vulnerability alerts.
+
 ### Available Make Targets
 
 #### Static Security Analysis (gosec)
@@ -38,8 +44,16 @@ The project uses multiple security analysis tools to ensure code security:
 #### Error Handling Analysis (errcheck)
 - `make errcheck` - Check for unchecked errors in Go code
 
+#### Software Bill of Materials (Syft)
+- `make sbom-generate` - Generate SBOM with Syft (JSON format)
+- `make sbom-syft` - Generate SBOM in Syft JSON format (alias for sbom-generate)
+- `make sbom-spdx` - Generate SBOM in SPDX JSON format
+- `make sbom-cyclonedx` - Generate SBOM in CycloneDX JSON format
+- `make sbom-all` - Generate SBOM in all supported formats
+- `make sbom-ci` - Generate SBOM for CI pipeline (quiet mode)
+
 #### Combined Analysis
-- `make check-all` - Run all code quality checks including error checking, security and vulnerability scans
+- `make check-all` - Run all code quality checks including error checking, security, vulnerability scans and SBOM generation
 
 ### Configuration
 
@@ -67,6 +81,7 @@ Security and vulnerability scanning is integrated into the CI/CD pipeline via Gi
 - **errcheck**: Error handling analysis runs on every push and PR
 - **revive**: Code style and naming conventions (via golangci-lint)
 - **testify**: Comprehensive unit testing framework for robust test coverage
+- **Syft**: Software Bill of Materials (SBOM) generation using anchore/sbom-action for supply chain security
 - **Trivy**: Additional vulnerability scanning for comprehensive coverage
 - **Nancy**: Sonatype vulnerability checking
 - **OpenSSF Scorecard**: Security posture assessment
@@ -77,6 +92,7 @@ Security and vulnerability scanning is integrated into the CI/CD pipeline via Gi
 - Scheduled weekly scans (Tuesdays at 07:20 UTC)
 - Results uploaded to GitHub Security tab
 - SARIF and JSON reports stored as artifacts
+- SBOM automatically uploaded as release assets when creating GitHub releases
 
 ### Security Rules Coverage
 
@@ -144,6 +160,14 @@ make vuln-check-json        # JSON output
 make errcheck               # Check for unchecked errors
 ```
 
+**Software Bill of Materials (Syft):**
+```bash
+make sbom-generate          # Syft JSON format
+make sbom-spdx              # SPDX JSON format
+make sbom-cyclonedx         # CycloneDX JSON format
+make sbom-all               # All formats
+```
+
 #### View Results
 ```bash
 # View gosec results
@@ -152,6 +176,11 @@ cat gosec-report.json
 
 # View govulncheck results  
 cat vulncheck-report.json
+
+# View SBOM results
+cat sbom.syft.json          # Syft JSON format
+cat sbom.spdx.json          # SPDX JSON format  
+cat sbom.cyclonedx.json     # CycloneDX JSON format
 ```
 
 ### Continuous Security Monitoring
@@ -159,9 +188,10 @@ cat vulncheck-report.json
 The project maintains continuous security monitoring through:
 
 1. **Automated Scanning**: Every code change triggers security analysis
-2. **Dependency Monitoring**: Regular checks for vulnerable dependencies
-3. **Security Advisories**: GitHub Security Advisory monitoring
-4. **SARIF Integration**: Results integrated with GitHub Security tab
+2. **Dependency Monitoring**: Regular checks for vulnerable dependencies  
+3. **SBOM Generation**: Software Bill of Materials created for supply chain visibility
+4. **Security Advisories**: GitHub Security Advisory monitoring
+5. **SARIF Integration**: Results integrated with GitHub Security tab
 
 ### Security Best Practices
 
@@ -180,12 +210,12 @@ The project maintains continuous security monitoring through:
 
 **Latest Available**: CWE taxonomy version **4.17** was released on April 3, 2025.
 
-**Impact**: 
+**Impact**:
 - SARIF reports contain outdated CWE classifications
 - Newer weakness categories and updated descriptions are not available
 - Security tooling integration may reference deprecated CWE entries
 
-**Workaround**: 
+**Workaround**:
 - This is a limitation of the gosec tool itself, not our configuration
 - gosec hardcodes the CWE version in its source code without configuration options
 - Consider upgrading gosec when newer versions with updated CWE taxonomy become available
@@ -194,4 +224,4 @@ The project maintains continuous security monitoring through:
 
 ### Reporting Security Issues
 
-If you discover a security vulnerability, please report it privately to the maintainers through GitHub Security Advisories rather than opening a public issue. 
+If you discover a security vulnerability, please report it privately to the maintainers through GitHub Security Advisories rather than opening a public issue.

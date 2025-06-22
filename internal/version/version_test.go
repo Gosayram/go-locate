@@ -8,7 +8,7 @@ import (
 
 const (
 	TestVersion     = "1.2.3"
-	TestCommit      = "abc123def456"
+	TestCommit      = "abc123def456" // pragma: allowlist secret
 	TestDate        = "2024-01-15_12:30:45"
 	TestBuiltBy     = "test-user"
 	TestBuildNumber = "42"
@@ -183,7 +183,7 @@ func TestShortCommitHash(t *testing.T) {
 	originalCommit := Commit
 
 	// Test with long commit
-	Commit = "abcdef1234567890"
+	Commit = "abcdef1234567890" // pragma: allowlist secret
 	result := GetFullVersionInfo()
 
 	if !strings.Contains(result, "abcdef1") {

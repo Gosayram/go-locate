@@ -18,4 +18,4 @@ io.Copy(os.Stderr)
 (*bytes.Buffer).Write
 (*bytes.Buffer).WriteString
 (*strings.Builder).Write
-(*strings.Builder).WriteString 
+(*strings.Builder).WriteString

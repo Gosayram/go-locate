@@ -293,4 +293,4 @@ make check-all
 - **Integration testing**: CLI functionality validation across platforms
 - **Benchmark matrix**: Performance testing across Go versions
 
-For detailed matrix testing documentation, see [docs/MATRIX-TESTING.md](docs/MATRIX-TESTING.md). 
+For detailed matrix testing documentation, see [docs/MATRIX-TESTING.md](docs/MATRIX-TESTING.md).

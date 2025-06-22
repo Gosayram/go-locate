@@ -206,4 +206,4 @@ max_results = 1000
 - Network file system support
 - Plugin architecture for custom filters
 - Integration with popular editors/IDEs
-- Shell completion for bash/zsh/fish 
+- Shell completion for bash/zsh/fish

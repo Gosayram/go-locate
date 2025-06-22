@@ -37,6 +37,14 @@ VULNCHECK_REPORT_FILE := vulncheck-report.json
 # Error checking constants
 ERRCHECK_VERSION := v1.9.0
 
+# SBOM generation constants
+SYFT_VERSION := latest
+SYFT = $(GOPATH)/bin/syft
+SYFT_OUTPUT_FORMAT := syft-json
+SYFT_SBOM_FILE := sbom.syft.json
+SYFT_SPDX_FILE := sbom.spdx.json
+SYFT_CYCLONEDX_FILE := sbom.cyclonedx.json
+
 # Build flags
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE ?= $(shell date -u '+%Y-%m-%d_%H:%M:%S')
@@ -114,7 +122,13 @@ help:
 	@echo "  vuln-check      - Run govulncheck vulnerability scanner"
 	@echo "  vuln-check-json - Run govulncheck vulnerability scanner (JSON output)"
 	@echo "  vuln-check-ci   - Run govulncheck vulnerability scanner for CI"
-	@echo "  check-all       - Run all code quality checks including error checking, security and vulnerability checks"
+	@echo "  sbom-generate   - Generate Software Bill of Materials (SBOM) with Syft"
+	@echo "  sbom-syft       - Generate SBOM in Syft JSON format (alias for sbom-generate)"
+	@echo "  sbom-spdx       - Generate SBOM in SPDX JSON format"
+	@echo "  sbom-cyclonedx  - Generate SBOM in CycloneDX JSON format"
+	@echo "  sbom-all        - Generate SBOM in all supported formats"
+	@echo "  sbom-ci         - Generate SBOM for CI pipeline (quiet mode)"
+	@echo "  check-all       - Run all code quality checks including error checking, security, vulnerability checks and SBOM generation"
 	@echo ""
 	@echo "  Dependencies:"
 	@echo "  ============="
@@ -209,6 +223,12 @@ install-tools:
 	go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 	go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	go install github.com/kisielk/errcheck@$(ERRCHECK_VERSION)
+	@echo "Installing Syft SBOM generator..."
+	@if ! command -v $(SYFT) >/dev/null 2>&1; then \
+		curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b $(GOPATH)/bin; \
+	else \
+		echo "Syft is already installed at $(SYFT)"; \
+	fi
 	@echo "Development tools installed successfully"
 
 # Build targets
@@ -507,8 +527,53 @@ vuln-check-ci: vuln-install-govulncheck
 	@$(GOVULNCHECK) -json ./... > $(VULNCHECK_REPORT_FILE) || echo "Vulnerabilities found, check report"
 	@echo "CI vulnerability scan completed. Report saved to $(VULNCHECK_REPORT_FILE)"
 
-check-all: fmt vet imports lint staticcheck errcheck security-scan vuln-check
-	@echo "All code quality checks completed"
+# SBOM generation with Syft
+.PHONY: sbom-generate sbom-syft sbom-spdx sbom-cyclonedx sbom-install-syft sbom-all sbom-ci
+
+sbom-install-syft:
+	@if ! command -v $(SYFT) >/dev/null 2>&1; then \
+		echo "Syft is not installed. Installing Syft $(SYFT_VERSION)..."; \
+		curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b $(GOPATH)/bin; \
+		echo "Syft installed successfully!"; \
+	else \
+		echo "Syft is already installed"; \
+	fi
+
+sbom-generate: sbom-install-syft
+	@echo "Generating SBOM with Syft (JSON format)..."
+	@$(SYFT) . -o $(SYFT_OUTPUT_FORMAT)=$(SYFT_SBOM_FILE)
+	@echo "SBOM generated successfully: $(SYFT_SBOM_FILE)"
+	@echo "To view SBOM: cat $(SYFT_SBOM_FILE)"
+
+sbom-syft: sbom-generate
+
+sbom-spdx: sbom-install-syft
+	@echo "Generating SBOM with Syft (SPDX JSON format)..."
+	@$(SYFT) . -o spdx-json=$(SYFT_SPDX_FILE)
+	@echo "SPDX SBOM generated successfully: $(SYFT_SPDX_FILE)"
+
+sbom-cyclonedx: sbom-install-syft
+	@echo "Generating SBOM with Syft (CycloneDX JSON format)..."
+	@$(SYFT) . -o cyclonedx-json=$(SYFT_CYCLONEDX_FILE)
+	@echo "CycloneDX SBOM generated successfully: $(SYFT_CYCLONEDX_FILE)"
+
+sbom-all: sbom-install-syft
+	@echo "Generating SBOM in all supported formats..."
+	@$(SYFT) . -o $(SYFT_OUTPUT_FORMAT)=$(SYFT_SBOM_FILE)
+	@$(SYFT) . -o spdx-json=$(SYFT_SPDX_FILE)
+	@$(SYFT) . -o cyclonedx-json=$(SYFT_CYCLONEDX_FILE)
+	@echo "All SBOM formats generated successfully:"
+	@echo "  - Syft JSON: $(SYFT_SBOM_FILE)"
+	@echo "  - SPDX JSON: $(SYFT_SPDX_FILE)"
+	@echo "  - CycloneDX JSON: $(SYFT_CYCLONEDX_FILE)"
+
+sbom-ci: sbom-install-syft
+	@echo "Generating SBOM for CI pipeline..."
+	@$(SYFT) . -o $(SYFT_OUTPUT_FORMAT)=$(SYFT_SBOM_FILE) --quiet
+	@echo "CI SBOM generation completed. Report saved to $(SYFT_SBOM_FILE)"
+
+check-all: fmt vet imports lint staticcheck errcheck security-scan vuln-check sbom-generate
+	@echo "All code quality checks and SBOM generation completed"
 
 # Configuration targets
 .PHONY: example-config validate-config
@@ -583,6 +648,7 @@ clean:
 	rm -f coverage.out coverage.html benchmark-report.md
 	rm -f $(GOSEC_REPORT_FILE) $(GOSEC_JSON_REPORT) gosec-report.html
 	rm -f $(VULNCHECK_REPORT_FILE)
+	rm -f $(SYFT_SBOM_FILE) $(SYFT_SPDX_FILE) $(SYFT_CYCLONEDX_FILE)
 	rm -rf testdata/integration testdata/benchmark
 	go clean -cache
 	@echo "Cleanup completed"
@@ -808,4 +874,4 @@ matrix-info:
 	@echo "  1. Push to main/develop branch (automatic)"
 	@echo "  2. Create pull request (automatic)"
 	@echo "  3. Manual trigger via GitHub Actions"
-	@echo "  4. Scheduled daily run at 02:00 UTC" 
+	@echo "  4. Scheduled daily run at 02:00 UTC"

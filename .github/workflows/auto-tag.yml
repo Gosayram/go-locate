@@ -53,7 +53,7 @@ jobs:
         run: |
           # Sync tags from remote to ensure we have the latest state
           git fetch --tags
-          
+
           # Get the latest tag from remote, default to v0.0.0 if none exists
           REMOTE_TAGS=$(git ls-remote --tags origin | grep -v '\^{}' | cut -d'/' -f3 | sort -V | tail -1)
           if [ -n "$REMOTE_TAGS" ]; then
@@ -80,7 +80,7 @@ jobs:
             echo "Commits since last tag ${{ env.LATEST_TAG }}:"
           fi
           echo "$COMMITS"
-          
+
           # Check if we should skip tagging (only check the latest commit)
           LATEST_COMMIT=$(git log -1 --oneline)
           if echo "$LATEST_COMMIT" | grep -i "\[skip-tag\]" > /dev/null; then
@@ -88,10 +88,10 @@ jobs:
             echo "Skipping tag creation due to [skip-tag] in latest commit message"
             exit 0
           fi
-          
+
           # Default to patch bump
           BUMP_TYPE="patch"
-          
+
           # Check if this is a manual dispatch with force_bump
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.force_bump }}" ]; then
             BUMP_TYPE="${{ github.event.inputs.force_bump }}"
@@ -109,7 +109,7 @@ jobs:
               echo "No explicit version indicators found, defaulting to patch bump"
             fi
           fi
-          
+
           echo "SKIP_TAG=false" >> $GITHUB_ENV
           echo "BUMP_TYPE=$BUMP_TYPE" >> $GITHUB_ENV
           echo "Version bump type: $BUMP_TYPE"
@@ -125,12 +125,12 @@ jobs:
             FILE_VERSION="0.0.0"
             echo "No .release-version file found, using default: $FILE_VERSION"
           fi
-          
+
           # Also check latest git tag for comparison
           TAG_VERSION="${{ env.LATEST_TAG }}"
           TAG_VERSION=${TAG_VERSION#v}
           echo "Latest git tag version: $TAG_VERSION"
-          
+
           # Use the higher version between file and tag
           if [ "$FILE_VERSION" != "0.0.0" ] && [ "$TAG_VERSION" != "0.0.0" ]; then
             # Compare versions and use the higher one
@@ -148,19 +148,19 @@ jobs:
             CURRENT_VERSION="$TAG_VERSION"
             echo "Using tag version as current: $CURRENT_VERSION"
           fi
-          
+
           # Split version into parts
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-          
+
           # Default values if parsing fails
           MAJOR=${MAJOR:-0}
           MINOR=${MINOR:-0}
           PATCH=${PATCH:-0}
-          
+
           # Custom versioning logic with 9-limit per component
           # Rules: when component reaches 9, bump next level and reset
           # Example: 0.1.9 -> 0.2.0, 0.9.9 -> 1.0.0
-          
+
           case "${{ env.BUMP_TYPE }}" in
             "major")
               MAJOR=$((MAJOR + 1))
@@ -198,10 +198,10 @@ jobs:
               fi
               ;;
           esac
-          
+
           NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
           echo "Bumped version from $CURRENT_VERSION to $NEW_VERSION (type: ${{ env.BUMP_TYPE }})"
-          
+
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: Check if tag already exists
@@ -213,7 +213,7 @@ jobs:
             echo "Skipping tag creation"
             exit 0
           fi
-          
+
           # Check if tag exists on remote
           if git ls-remote --tags origin | grep -q "refs/tags/${{ env.NEW_VERSION }}$"; then
             echo "TAG_EXISTS=true" >> $GITHUB_ENV
@@ -229,20 +229,20 @@ jobs:
           # Configure git
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Get current version from file
           CURRENT_FILE_VERSION=""
           if [ -f .release-version ]; then
             CURRENT_FILE_VERSION=$(cat .release-version | tr -d '\n')
           fi
-          
+
           NEW_FILE_VERSION="${{ env.NEW_VERSION }}"
           NEW_FILE_VERSION="${NEW_FILE_VERSION#v}"
-          
+
           # Always update version file and create tag
           echo "Updating .release-version from '$CURRENT_FILE_VERSION' to '$NEW_FILE_VERSION'"
           echo "$NEW_FILE_VERSION" > .release-version
-          
+
           # Check if there are changes to commit
           if git diff --quiet .release-version; then
             echo "No changes in .release-version file"
@@ -260,17 +260,17 @@ jobs:
           # Configure git for proper tag creation
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Get latest commit info for tag message
           COMMIT_MSG=$(git log -1 --pretty=format:"%s")
           COMMIT_SHA=$(git rev-parse HEAD)
-          
+
           # Create lightweight tag (better for GitHub UI)
           git tag "${{ env.NEW_VERSION }}"
-          
+
           # Push tag to origin
           git push origin "${{ env.NEW_VERSION }}"
-          
+
           echo "Created and pushed lightweight tag: ${{ env.NEW_VERSION }}"
           echo "Tag points to commit: $COMMIT_SHA"
           echo "Latest commit: $COMMIT_MSG"
@@ -289,4 +289,4 @@ jobs:
             echo "Skipping tag creation due to [skip-tag] flag"
           elif [ "${{ env.TAG_EXISTS }}" = "true" ]; then
             echo "Tag ${{ env.NEW_VERSION }} already exists"
-          fi 
+          fi

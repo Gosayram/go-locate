@@ -75,4 +75,4 @@ if command -v "$BINARY_NAME" &> /dev/null; then
 else
     echo -e "${RED}Error: Installation verification failed${NC}"
     exit 1
-fi 
+fi
