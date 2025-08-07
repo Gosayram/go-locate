@@ -1,5 +1,5 @@
 # Build stage v1.24.4-alpine3.22
-FROM golang:1.24.4-alpine3.22@sha256:68932fa6d4d4059845c8f40ad7e654e626f3ebd3706eef7846f319293ab5cb7a AS builder
+FROM golang:1.24.6-alpine3.22@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS builder
 
 # Install git and ca-certificates (needed for go mod download)
 RUN apk add --no-cache git ca-certificates tzdata
